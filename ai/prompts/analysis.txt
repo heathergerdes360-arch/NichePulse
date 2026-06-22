@@ -1,0 +1,10 @@
+Analyze the following industry news and social signals. 
+Output the analysis in JSON format with the following keys:
+- sentiment: "Positive", "Negative", or "Neutral"
+- key_signals: A list of up to 3 major events or trends mentioned.
+- importance_score: A rating from 1-10 (how much should an investor/founder care?).
+
+Signals:
+{{signals_content}}
+
+Analysis:

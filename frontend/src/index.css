@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  
+  --color-deep-charcoal: #1A1A2E;
+  --color-midnight-blue: #16213E;
+  --color-signal-green: #00D68F;
+  --color-surface-light: #F8F9FC;
+}
+
+:root {
+  font-family: var(--font-body);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--color-surface-light);
+  color: #111827; /* gray-900 */
+}
+
+/* Custom Design System Classes */
+@utility font-display {
+  font-family: var(--font-display);
+}
+
+@utility gradient-primary {
+  background: linear-gradient(135deg, #7C3AED 0%, #06B6D4 100%);
+}
+
+@utility gradient-signal {
+  background: linear-gradient(135deg, #00D68F 0%, #06B6D4 50%, #7C3AED 100%);
+}
+
+@utility gradient-dark {
+  background: linear-gradient(180deg, #1A1A2E 0%, #16213E 100%);
+}
+
+@utility card {
+  background-color: white;
+  border-radius: 1rem; /* 2xl */
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); /* shadow-sm */
+  border: 1px solid #F3F4F6; /* gray-100 */
+  transition: all 0.2s;
+}
+
+@utility card-interactive {
+  @apply card;
+  &:hover {
+    border-color: #EDE9FE; /* violet-200 */
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1); /* shadow-lg */
+  }
+}
+
+@utility glass {
+  background-color: rgb(255 255 255 / 0.05);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 1.5rem; /* 3xl */
+}

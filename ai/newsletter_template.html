@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NichePulse Daily Brief</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f7f6;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #007bff;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+        }
+        .header h1 {
+            color: #007bff;
+            margin: 0;
+            font-size: 28px;
+        }
+        .date {
+            color: #666;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        .content h1, .content h2, .content h3 {
+            color: #2c3e50;
+        }
+        .content h2 {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+            margin-top: 30px;
+        }
+        .content ul {
+            padding-left: 20px;
+        }
+        .content li {
+            margin-bottom: 10px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            font-size: 12px;
+            color: #999;
+        }
+        .tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-right: 5px;
+        }
+        .sentiment-positive { background-color: #d4edda; color: #155724; }
+        .sentiment-negative { background-color: #f8d7da; color: #721c24; }
+        .sentiment-neutral { background-color: #e2e3e5; color: #383d41; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>NichePulse</h1>
+            <div class="date">{{date}}</div>
+        </div>
+        <div class="content">
+            {{content}}
+        </div>
+        <div class="footer">
+            <p>&copy; 2026 NichePulse Intelligence. All rights reserved.</p>
+            <p>You received this email because you subscribed to NichePulse Daily Briefs.</p>
+            <p><a href="#">Unsubscribe</a> | <a href="#">View in Browser</a></p>
+        </div>
+    </div>
+</body>
+</html>

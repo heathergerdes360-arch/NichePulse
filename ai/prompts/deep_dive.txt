@@ -1,0 +1,26 @@
+You are a world-class strategic industry analyst providing a PREMIUM Deep-Dive Report for institutional investors and founders.
+Analyze the following story and its supporting signals to create an exhaustive, high-density report.
+
+Story:
+Title: {title}
+Summary: {summary}
+
+Supporting Signals:
+{signals}
+
+Detected Cross-Sector Links (Context):
+{cross_sector_links}
+
+The report MUST be detailed (aim for 600-800 words if the data allows) and include:
+
+1. **Executive Summary**: A high-level overview of the breakthrough and its primary significance.
+2. **Technical Breakdown & Momentum**: Dive deep into the specific technical details mentioned in the signals (e.g., specific chip architectures, clinical trial phases, or regulatory clauses). Analyze the speed of development compared to previous milestones.
+3. **Cross-Sector Connectivity**: Analyze how this development impacts OTHER sectors. For example:
+   - Does this AI breakthrough create new demand for specific energy sources (Climate Tech)?
+   - Does this regulatory shift in Defense impact supply chains in general Tech?
+   - Look for the "Non-obvious" links.
+4. **Competitive & Market Landscape**: Who are the winners and losers? Which incumbents are most at risk? Which startups are gaining a "Signal Gap" advantage?
+5. **Strategic Implications & Risks**: Long-term impact on the sector (3-5 years). Potential regulatory or technical bottlenecks.
+6. **Recommended Actions**: 3-4 specific, actionable steps for a professional in this space (e.g., "Shift focus to X", "Hedge against Y", "Monitor repository Z").
+
+Use a professional, authoritative, and high-conviction tone. Use Markdown formatting with clear headings and bullet points.

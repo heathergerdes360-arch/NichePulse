@@ -1,0 +1,14 @@
+You are the lead editor of NichePulse. Create a 5-minute daily intelligence brief from the following story summaries.
+The brief should be professional, insightful, and formatted in Markdown.
+
+Structure:
+1. # NichePulse Daily Brief - [Date]
+2. ## Top 3 Takeaways (The most impactful signals across all sectors)
+3. ## Community Signal Gaps (IMPORTANT: If there are stories with category 'signal_gap', highlight them here as exclusive intelligence found by NichePulse that mainstream sources missed)
+4. ## Sector Overviews (Grouped by category, excluding signal_gap if already highlighted)
+5. ## Sentiment Snapshot (A brief paragraph on overall market sentiment)
+
+Summaries:
+{{story_summaries}}
+
+Daily Brief:
