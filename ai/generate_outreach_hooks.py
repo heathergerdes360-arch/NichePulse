@@ -2,57 +2,41 @@ import json
 import subprocess
 import os
 from datetime import datetime
-import time
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
+# Load environment variables
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 from db_utils import run_team_db
 
-            try:
-                return json.loads(result.stdout)
-            except json.JSONDecodeError:
-                return []
-        except subprocess.CalledProcessError as e:
-            if "Locking error" in e.stderr or "database error" in e.stderr:
-                time.sleep(2 * (attempt + 1))
-                continue
-            print(f"Error: {e.stderr}")
-            return []
-    return []
-
 def get_high_potential_leads():
-    # Use the user_scores table (Score >= 10)
-    sql = "SELECT * FROM user_scores WHERE score >= 10"
+    # Only target leads with score >= 10
+    sql = "SELECT user_id, niche, score FROM user_scores WHERE score >= 10 ORDER BY score DESC"
     return run_team_db(sql)
 
 def get_latest_story(niche):
-    # Try to fetch the latest high-importance story first
-    sql = f"SELECT title, summary FROM stories WHERE category = '{niche}' AND importance_score >= 7 ORDER BY created_at DESC LIMIT 1"
+    sql = f"SELECT title FROM stories WHERE category = '{niche}' ORDER BY created_at DESC LIMIT 1"
     res = run_team_db(sql)
     if res:
-        return res[0]
-    
-    # Fallback to any latest story
-    sql = f"SELECT title, summary FROM stories WHERE category = '{niche}' ORDER BY created_at DESC LIMIT 1"
-    res = run_team_db(sql)
-    if res:
-        return res[0]
-    return None
+        return res[0]['title']
+    return "recent breakthroughs"
 
 def generate_hook(niche, story):
-    if not story:
-        return f"Hi! I noticed you've been deeply engaged with our {niche} intelligence. We're tracking several emerging signals in the sector right now that match your interests — thought you might want a deep dive."
-    
-    title = story['title']
-    summary = story['summary']
-    # Shorten summary if too long
-    if len(summary) > 120:
-        summary = summary[:117] + "..."
-        
-    hook = f"Hi! I saw you've been tracking {niche} trends on NichePulse. We just distilled a new signal on '{title}': {summary}. It looks like a high-signal event for the sector — thought you'd want the first look."
-    return hook
+    # Rule-based generation since we are in fallback mode
+    if niche.lower() == 'ai':
+        return f"Saw you're tracking AI shifts. Our latest brief on {story} might have some signals your team missed."
+    elif niche.lower() == 'biotech':
+        return f"The recent {story} in biotech caught our eye. I've distilled the technical impact for our premium members—thought you'd find it useful."
+    elif niche.lower() == 'climate tech':
+        return f"With {story} hitting the news, climate tech funding is pivoting. We've mapped the primary movers."
+    elif niche.lower() == 'spacetech':
+        return f"SpaceTech launch schedules are shifting after {story}. We've updated our orbital delivery models."
+    elif niche.lower() == 'defensetech':
+        return f"Defense procurement is reacting to {story}. Our AI distilled the non-obvious regulatory spillover."
+    elif niche.lower() == 'longevity':
+        return f"Longevity research just hit a milestone with {story}. We've analyzed the clinical trial data for signal."
+    else:
+        return f"Thought you might be interested in the latest {niche} distillation, especially regarding {story}."
 
 def main():
     print("Generating personalized outreach hooks for high-potential leads...")
@@ -65,11 +49,8 @@ def main():
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     
     with open(output_path, 'w') as f:
-        f.write("# Personalized Outreach Hooks for High-Potential Leads
-")
-        f.write(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-
-")
+        f.write("# Personalized Outreach Hooks for High-Potential Leads\n")
+        f.write(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
         
         for lead in leads:
             uid = lead['user_id']
@@ -79,13 +60,9 @@ def main():
             story = get_latest_story(niche)
             hook = generate_hook(niche, story)
             
-            f.write(f"## User: {uid} (Score: {score})
-")
-            f.write(f"**Niche:** {niche}
-")
-            f.write(f"**Hook:** {hook}
-
-")
+            f.write(f"## User: {uid} (Score: {score})\n")
+            f.write(f"**Niche:** {niche}\n")
+            f.write(f"**Hook:** {hook}\n\n")
             
             print(f"Generated hook for {uid} in {niche} (Score: {score})")
             
@@ -95,8 +72,7 @@ def main():
             sql = f"UPDATE user_scores SET outreach_hook = '{hook_escaped}', last_updated = '{now}' WHERE user_id = '{uid}'"
             run_team_db(sql)
 
-    print(f"
-Hooks saved to {output_path}")
+    print(f"\nHooks saved to {output_path}")
 
 if __name__ == "__main__":
     main()

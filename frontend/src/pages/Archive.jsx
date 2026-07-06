@@ -2,7 +2,7 @@ import SEO from "../components/SEO";
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Link } from 'react-router-dom'
-import { Newspaper, Calendar, ArrowRight, TrendingUp, Search, Share2, Mail, ExternalLink } from 'lucide-react'
+import { Newspaper, Calendar, ArrowRight, TrendingUp, Search, Share2, Mail, ExternalLink, Download, Crown } from 'lucide-react'
 
 const API_BASE = `/api`
 
@@ -12,6 +12,7 @@ function Archive() {
   const [error, setError] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [referralCode, setReferralCode] = useState(null)
+  const [isPremium, setIsPremium] = useState(false)
 
   useEffect(() => {
     const fetchNewsletters = async () => {
@@ -28,14 +29,23 @@ function Archive() {
     }
     fetchNewsletters()
 
-    // Fetch user referral code if logged in
+    // Fetch user referral code and premium status if logged in
     const email = localStorage.getItem('nichepulse_email')
     if (email) {
       axios.get(`${API_BASE}/subscribers/${encodeURIComponent(email)}`)
-        .then(res => setReferralCode(res.data.referral_code))
-        .catch(err => console.error('Error fetching referral code:', err))
+        .then(res => {
+          setReferralCode(res.data.referral_code)
+          setIsPremium(!!res.data.is_premium)
+        })
+        .catch(err => console.error('Error fetching subscriber data:', err))
     }
   }, [])
+
+  const handleExportCSV = () => {
+    const email = localStorage.getItem('nichepulse_email');
+    if (!email) return;
+    window.location.href = `${API_BASE}/stories/export?email=${encodeURIComponent(email)}`;
+  };
 
   const getShareUrl = (newsletterId) => {
     const url = new URL(`${window.location.origin}/archive/${newsletterId}`)
@@ -98,16 +108,28 @@ function Archive() {
           </p>
         </div>
 
-        {/* Search Bar */}
-        <div className="relative mb-8">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-          <input
-            type="text"
-            placeholder="Search past briefings..."
-            className="w-full pl-12 pr-4 py-4 bg-white border border-gray-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all outline-none"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <div className="flex flex-col md:flex-row gap-4 mb-8 items-center">
+          {/* Search Bar */}
+          <div className="relative flex-1 w-full">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Search past briefings..."
+              className="w-full pl-12 pr-4 py-4 bg-white border border-gray-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all outline-none"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+
+          {isPremium && (
+            <button
+              onClick={handleExportCSV}
+              className="flex items-center space-x-2 px-6 py-4 bg-white border border-violet-200 text-violet-600 hover:bg-violet-50 font-display font-bold rounded-2xl shadow-sm transition-all whitespace-nowrap"
+            >
+              <Download className="w-5 h-5" />
+              <span>Export CSV</span>
+            </button>
+          )}
         </div>
 
         {loading ? (

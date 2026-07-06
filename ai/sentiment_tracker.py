@@ -8,19 +8,6 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 from db_utils import run_team_db
-
-            try:
-                return json.loads(result.stdout)
-            except json.JSONDecodeError:
-                return []
-        except subprocess.CalledProcessError as e:
-            if "Locking error" in e.stderr or "database error" in e.stderr:
-                time.sleep(2 * (attempt + 1))
-                continue
-            print(f"Error running team-db: {e.stderr}")
-            return []
-    return []
-
 def aggregate_sentiment():
     print("Aggregating sentiment from stories and social signals...")
     yesterday = (datetime.now() - timedelta(days=1)).isoformat()

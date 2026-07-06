@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 from db_utils import run_team_db
-
 def analyze_user_interests():
     """
     Analyzes traffic logs to identify high-growth niches for users and score them as leads.
@@ -95,13 +94,13 @@ def main():
     scores = analyze_user_interests()
     save_scores(scores)
     
-    print("
---- Top Lead Scores ---")
+    print("""
+--- Top Lead Scores ---""")
     for s in scores[:5]:
         print(f"User: {s['user_id']} | Niche: {s['niche']} | Score: {s['score']} (Activity: {s['activity_count']})")
     
-    print(f"
-Analyzed {len(scores)} users and updated 'user_scores' table.")
+    print(f"""
+Analyzed {len(scores)} users and updated 'user_scores' table.""")
 
 if __name__ == "__main__":
     main()

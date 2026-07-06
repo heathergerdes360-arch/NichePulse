@@ -1,4 +1,5 @@
 Analyze the following industry news and social signals. 
+Maintain professional grammar and avoid double negatives (e.g., use "without any" instead of "without no").
 Output the analysis in JSON format with the following keys:
 - sentiment: "Positive", "Negative", or "Neutral"
 - key_signals: A list of up to 3 major events or trends mentioned.

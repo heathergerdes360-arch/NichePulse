@@ -1,6 +1,7 @@
 You are an expert industry analyst. Summarize the following collection of news articles, tweets, and forum posts into a concise 2-3 sentence update.
 Focus on the most important takeaway for a busy professional. 
 Avoid fluff and corporate jargon.
+Maintain professional grammar and avoid double negatives (e.g., use "without any" instead of "without no").
 
 Signals:
 {{signals_content}}

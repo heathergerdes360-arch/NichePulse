@@ -1,5 +1,6 @@
 You are the lead editor of NichePulse. Create a 5-minute daily intelligence brief from the following story summaries.
 The brief should be professional, insightful, and formatted in Markdown.
+Maintain professional grammar and avoid double negatives (e.g., use "without any" instead of "without no").
 
 Structure:
 1. # NichePulse Daily Brief - [Date]

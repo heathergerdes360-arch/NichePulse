@@ -34,13 +34,16 @@ SENTIMENT_TRACKER_SCRIPT = os.path.join(AI_DIR, "sentiment_tracker.py")
 ALERT_SYSTEM_SCRIPT = os.path.join(AI_DIR, "alert_system.py")
 NEWSLETTER_GENERATOR_SCRIPT = os.path.join(AI_DIR, "newsletter_generator.py")
 VIRAL_INSIGHT_GENERATOR_SCRIPT = os.path.join(AI_DIR, "viral_insight_generator.py")
+COMMUNITY_REPORT_SCRIPT = os.path.join(AI_DIR, "generate_community_reports.py")
+SEO_BLOG_GENERATOR_SCRIPT = os.path.join(AI_DIR, "seo_blog_generator.py")
+SOCIAL_POSTING_SCRIPT = "/home/team/shared/social/post_to_social.py"
 USER_ANALYSIS_SCRIPT = os.path.join(AI_DIR, "user_analysis.py")
 GENERATE_HOOKS_SCRIPT = os.path.join(AI_DIR, "generate_outreach_hooks.py")
 EVENT_PROMOTER_SCRIPT = os.path.join(AI_DIR, "event_promoter.py")
 DEEP_DIVE_ORCHESTRATOR_SCRIPT = os.path.join(AI_DIR, "generate_all_deep_dives.py")
 SEND_NEWSLETTER_SCRIPT = os.path.join(AI_DIR, "send_newsletter.py")
 
-def run_script(script_path, name, retries=3, delay=5):
+def run_script(script_path, name, retries=3, delay=5, timeout=600):
     if not os.path.exists(script_path):
         logging.warning(f"Script {name} not found at {script_path}. Skipping.")
         return False
@@ -50,11 +53,11 @@ def run_script(script_path, name, retries=3, delay=5):
         try:
             script_dir = os.path.dirname(script_path)
             # We set a timeout to prevent indefinite hangs
-            result = subprocess.run(["python3", script_path], capture_output=True, text=True, check=True, cwd=script_dir, timeout=600)
+            result = subprocess.run(["python3", script_path], capture_output=True, text=True, check=True, cwd=script_dir, timeout=timeout)
             logging.info(f"{name} completed successfully.")
             return True
         except subprocess.TimeoutExpired:
-            logging.error(f"{name} timed out after 10 minutes.")
+            logging.error(f"{name} timed out after {timeout} seconds.")
             if attempt < retries - 1:
                 logging.info(f"Retrying in {delay} seconds...")
                 time.sleep(delay)
@@ -68,8 +71,7 @@ def run_script(script_path, name, retries=3, delay=5):
                     continue
             logging.error(f"Error running {name}: {e.stderr}")
             if e.stdout:
-                logging.debug(f"Stdout from {name}:
-{e.stdout}")
+                logging.debug(f"Stdout from {name}: {e.stdout}")
             break
     return False
 
@@ -77,8 +79,6 @@ def main():
     logging.info("--- NichePulse Intelligence Pipeline Started ---")
     
     # 1. Ingestion
-    # Note: Ingestion is currently slow and prone to locking issues.
-    # We might skip it if it's already running.
     ingest_success = run_script(INGEST_SCRIPT, "RSS Ingestion", retries=1)
     
     # 1.1 Signal Gap Ingestion (New high-value sources)
@@ -91,11 +91,11 @@ def main():
     if distill_success:
         run_script(EVENT_PROMOTER_SCRIPT, "Market Event Promotion", retries=3)
         # 2.6 Premium Deep-Dive Generation
-        run_script(DEEP_DIVE_ORCHESTRATOR_SCRIPT, "Premium Deep-Dive Generation", retries=3)
+        run_script(DEEP_DIVE_ORCHESTRATOR_SCRIPT, "Premium Deep-Dive Generation", retries=3, timeout=1200)
 
     # 3. Sentiment Tracking
     if distill_success:
-        run_script(SOCIAL_SENTIMENT_SCRIPT, "Social Sentiment Analysis", retries=3)
+        run_script(SOCIAL_SENTIMENT_SCRIPT, "Social Sentiment Analysis", retries=3, timeout=1200)
         run_script(SENTIMENT_TRACKER_SCRIPT, "Sentiment Tracking", retries=3)
         # 3.1 Sentiment-Based Alerting
         run_script(ALERT_SYSTEM_SCRIPT, "Sentiment-Based Alerting", retries=3)
@@ -104,11 +104,20 @@ def main():
     if distill_success:
         synthesize_success = run_script(SYNTHESIZE_SCRIPT, "Daily Brief Synthesis", retries=3)
         
-        # 4.1 Newsletter Assembly (New step for file generation)
+        # 4.1 Newsletter Assembly
         run_script(NEWSLETTER_GENERATOR_SCRIPT, "Daily Newsletter Assembly", retries=3)
         
-        # 4.2 Viral Insight Generation (New step for growth fuel)
+        # 4.2 Viral Insight Generation
         run_script(VIRAL_INSIGHT_GENERATOR_SCRIPT, "Viral Insight Generation", retries=3)
+
+        # 4.2.1 Community Pulse Report
+        run_script(COMMUNITY_REPORT_SCRIPT, "Community Pulse Report Generation", retries=3)
+
+        # 4.2.2 SEO Blog Generation
+        run_script(SEO_BLOG_GENERATOR_SCRIPT, "SEO Blog Generation", retries=3)
+
+        # 4.2.2 Social Media Posting
+        run_script(SOCIAL_POSTING_SCRIPT, "Social Media Posting", retries=3)
 
         # 4.3 User Interest Analysis & Lead Scoring
         run_script(USER_ANALYSIS_SCRIPT, "User Interest Analysis", retries=3)
@@ -117,7 +126,6 @@ def main():
         run_script(GENERATE_HOOKS_SCRIPT, "Outreach Hook Generation", retries=3)
 
         if synthesize_success:
-
             run_script(SEND_NEWSLETTER_SCRIPT, "Newsletter Delivery (Mock)", retries=1)
     else:
         logging.warning("Distillation failed. Skipping Synthesis.")

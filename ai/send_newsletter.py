@@ -12,12 +12,6 @@ load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 from db_utils import run_team_db
-
-        return json.loads(result.stdout)
-    except Exception as e:
-        logging.error(f"Error running team-db: {e}")
-        return []
-
 def send_via_esp(email, html_content, subject):
     """
     Placeholder for real ESP delivery.

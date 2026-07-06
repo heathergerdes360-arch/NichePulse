@@ -9,16 +9,6 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 from db_utils import run_team_db
-
-        return json.loads(result.stdout)
-    except subprocess.CalledProcessError as e:
-        print(f"Error running team-db: {e}")
-        print(f"Stderr: {e.stderr}")
-        return []
-    except Exception as e:
-        print(f"Error: {e}")
-        return []
-
 def get_sentiment_shifts():
     # Get all sectors
     sectors_res = run_team_db("SELECT DISTINCT sector FROM sentiment_history")

@@ -10,8 +10,6 @@ from signal_connections import identify_signal_connections
 # Load environment variables from .env file
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
-import time
-
 from db_utils import run_team_db
 
 def get_today_stories():
@@ -46,51 +44,36 @@ def synthesize_report(stories):
     if not api_key:
         print("OPENAI_API_KEY not found in environment. Falling back to rule-based synthesis.")
         # Manual synthesis fallback
-        report = f"# NichePulse Daily Brief - {datetime.now().strftime('%B %d, %Y')}
-
-"
-        report += "## Top Takeaways
-"
+        report = f"# NichePulse Daily Brief - {datetime.now().strftime('%B %d, %Y')}\n\n"
+        report += "## Top Takeaways\n"
+        
         # Sort stories by importance
         sorted_stories = sorted(stories, key=lambda x: x.get('importance_score', 0), reverse=True)
         for s in sorted_stories[:3]:
-            report += f"- **{s['title']}**: {s['summary']}
-"
+            report += f"- **{s['title']}**: {s['summary']}\n"
             
-        report += "
-## Community Signal Gaps
-"
+        report += "\n## Community Signal Gaps\n"
         if "signal_gap" in sections:
             for s in sections["signal_gap"]:
-                report += f"- **{s['title']}**: {s['summary']}
-"
+                report += f"- **{s['title']}**: {s['summary']}\n"
         else:
-            report += "No exclusive signal gaps identified for this period.
-"
+            report += "No exclusive signal gaps identified for this period.\n"
 
-        report += "
-## Sector Updates
-"
+        report += "\n## Sector Updates\n"
         for cat, sigs in sections.items():
             if cat == "signal_gap":
                 continue
-            report += f"### {cat}
-"
+            report += f"### {cat}\n"
             for s in sigs:
-                report += f"- **{s['title']}**: {s['summary']} (Sentiment: {s['sentiment']})
-"
+                report += f"- **{s['title']}**: {s['summary']} (Sentiment: {s['sentiment']})\n"
         
-        report += "
-## Sentiment Snapshot
-"
+        report += "\n## Sentiment Snapshot\n"
         report += "Overall sentiment across sectors remains positive, driven by significant breakthroughs in AI reasoning and renewable energy efficiency."
         
         # Add Premium Signal Connections
         connections = identify_signal_connections(stories)
         if connections:
-            report += f"
-
-{connections}"
+            report += f"\n\n{connections}"
             
         return report
 
@@ -102,6 +85,8 @@ def synthesize_report(stories):
     You are the lead editor of NichePulse. Create a 5-minute daily intelligence brief from the following story summaries.
     The brief should be professional, insightful, and formatted in Markdown.
     
+    Maintain professional grammar and avoid double negatives (e.g., use "without any" instead of "without no").
+
     Structure:
     1. # NichePulse Daily Brief - [Date]
     2. ## Top 3 Takeaways (The most impactful signals across all sectors)
@@ -125,9 +110,7 @@ def synthesize_report(stories):
         if "Signal Connections" not in report:
             connections = identify_signal_connections(stories)
             if connections:
-                report += f"
-
-{connections}"
+                report += f"\n\n{connections}"
         
         return report
     except Exception as e:

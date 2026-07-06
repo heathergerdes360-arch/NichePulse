@@ -21,7 +21,6 @@ load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 import time
 
 from db_utils import run_team_db
-
 def get_signals():
     # Retrieve signals that haven't been distilled into a story yet
     return run_team_db("SELECT * FROM signals WHERE id NOT IN (SELECT signal_id FROM story_signals)")
@@ -133,6 +132,15 @@ def distill_with_llm(sigs, category):
             base_score = bucket["score"]
             if category == "signal_gap":
                 base_score += 1
+            
+            # Dynamic scoring based on content
+            all_text = " ".join([s.get('title', '') + " " + s.get('content', '') for s in bucket["sigs"]]).lower()
+            if any(word in all_text for word in ["regulation", "regulatory", "fda", "policy", "sec"]):
+                base_score += 1
+            if any(word in all_text for word in ["breakthrough", "milestone", "pivotal", "major"]):
+                base_score += 1
+            if any(word in all_text for word in ["funding", "ipo", "acquisition", "merger", "series"]):
+                base_score += 1
 
             stories.append({
                 "title": title,
@@ -152,6 +160,8 @@ def distill_with_llm(sigs, category):
     prompt = f"""
     You are a world-class strategic industry analyst. 
     You are given a list of signals (news, social media, technical data) for the '{category}' sector.
+
+    Maintain professional grammar and avoid double negatives (e.g., use "without any" instead of "without no").
 
     Your tasks:
     1. Filter out signals that are clearly IRRELEVANT to the '{category}' sector or are low-quality noise.

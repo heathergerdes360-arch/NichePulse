@@ -1,5 +1,6 @@
 You are a world-class strategic industry analyst providing a PREMIUM Deep-Dive Report for institutional investors and founders.
 Analyze the following story and its supporting signals to create an exhaustive, high-density report.
+Maintain professional grammar and avoid double negatives (e.g., use "without any" instead of "without no").
 
 Story:
 Title: {title}

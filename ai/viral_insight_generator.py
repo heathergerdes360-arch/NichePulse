@@ -2,7 +2,10 @@ import json
 import subprocess
 import os
 from datetime import datetime, timedelta
-from openai import OpenAI
+try:
+    from openai import OpenAI
+except ImportError:
+    OpenAI = None
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -62,127 +65,79 @@ def get_insights():
 
 def generate_mock_content(insights):
     today = datetime.now().strftime('%B %d, %Y')
-    md = f"# AI-Generated Viral Insights Content - {today}
-
-"
-    md += "*Note: This content was generated using rule-based fallback because no LLM API key was available.*
-
-"
+    md = f"# AI-Generated Viral Insights Content - {today}\n\n"
+    md += "*Note: This content was generated using rule-based fallback because no LLM API key was available.*\n\n"
+    
+    cta = "Read the full 5-minute brief on daily market signals at https://nichepulse.ai."
     
     for i, insight in enumerate(insights):
         title = insight['type']
         data = insight['data']
         
-        md += f"## Insight {i+1}: {title}
-"
+        md += f"## Insight {i+1}: {title}\n\n"
         
         if insight['type'] == "Market Event" or insight['type'] == "Latest Market Event (Fallback)":
             event_name = data.get('title', 'Market Move')
             sector = data.get('sector', 'Tech')
-            md += f"### Twitter Thread-starter
-"
-            md += f"🚨 BIG MOVE in {sector}: {event_name} just happened. Here is why this changes everything for the industry. 🧵(1/5) #NichePulse #{sector}
-
-"
-            md += f"### LinkedIn Post
-"
-            md += f"The recent {event_name} in the {sector} sector is a significant milestone. Our AI analysis shows that this signal indicates a shift in market dynamics... #ThoughtLeadership #BusinessIntelligence
-
-"
-            md += f"### Reddit Prompt
-"
-            md += f"How do you think {event_name} will affect small players in {sector}? (Post to r/{sector.lower().replace(' ', '')})
-
-"
+            tag = sector.replace(' ', '')
+            md += "### Twitter Thread-starter\n\n"
+            md += f"🚨 BIG MOVE in {sector}: {event_name} just happened. Here is why this changes everything for the industry. 🧵(1/5) #NichePulse #{tag}\n\n"
+            md += "### LinkedIn Post\n\n"
+            md += f"The recent {event_name} in the {sector} sector is a significant milestone. Our AI analysis shows that this signal indicates a shift in market dynamics... {cta} #ThoughtLeadership #BusinessIntelligence #{tag}\n\n"
+            md += "### Reddit Prompt\n\n"
+            md += f"How do you think {event_name} will affect small players in {sector}? (Post to r/{sector.lower().replace(' ', '')})\n\n"
             
         elif insight['type'] == "Market Summary":
             event_titles = [e.get('title', 'Market Move') for e in data]
             summary_text = " | ".join(event_titles)
-            md += f"### Twitter Thread-starter
-"
-            md += f"📊 24H MARKET ROUNDUP: {summary_text}. The industry is moving fast. Here are the 3 things you need to know today. 🧵 #MarketWrap #NichePulse
-
-"
-            md += f"### LinkedIn Post
-"
-            md += f"A busy 24 hours in the markets: we've seen {len(data)} major shifts including {summary_text}. Here's our take on the combined impact of these catalysts... #MarketIntelligence #BusinessSummary
-
-"
-            md += f"### Reddit Prompt
-"
-            md += f"Big day for the industry with {len(data)} major events. Which one do you think has the longest tail? (Post to r/nichecommunities)
-
-"
+            md += "### Twitter Thread-starter\n\n"
+            md += f"📊 24H MARKET ROUNDUP: {summary_text}. The industry is moving fast. Here are the 3 things you need to know today. 🧵 #MarketWrap #NichePulse\n\n"
+            md += "### LinkedIn Post\n\n"
+            md += f"A busy 24 hours in the markets: we've seen {len(data)} major shifts including {summary_text}. Here's our take on the combined impact of these catalysts... {cta} #MarketIntelligence #BusinessSummary\n\n"
+            md += "### Reddit Prompt\n\n"
+            md += f"Big day for the industry with {len(data)} major events. Which one do you think has the longest tail? (Post to r/nichecommunities)\n\n"
 
         elif insight['type'] == "Key Story":
             story_title = data.get('title', 'Industry Update')
             category = data.get('category', 'Tech')
-            md += f"### Twitter Thread-starter
-"
-            md += f"📈 Intelligence Alert: {story_title}. We've distilled the noise so you don't have to. Here's the 5-minute brief. 🧵 #NichePulse #{category}
-
-"
-            md += f"### LinkedIn Post
-"
-            md += f"Distilling the latest trends in {category}: {story_title}. Professionals need to stay ahead of these shifts to remain competitive. #Intelligence #Strategy
-
-"
-            md += f"### Reddit Prompt
-"
-            md += f"What is your take on the latest {category} developments? Does {story_title} align with what you are seeing on the ground? (Post to r/nichecommunities)
-
-"
+            tag = category.replace(' ', '')
+            md += "### Twitter Thread-starter\n\n"
+            md += f"📈 Intelligence Alert: {story_title}. We've distilled the noise so you don't have to. Here's the 5-minute brief. 🧵 #NichePulse #{tag}\n\n"
+            md += "### LinkedIn Post\n\n"
+            md += f"Distilling the latest trends in {category}: {story_title}. Professionals need to stay ahead of these shifts to remain competitive. {cta} #Intelligence #Strategy #{tag}\n\n"
+            md += "### Reddit Prompt\n\n"
+            md += f"What is your take on the latest {category} developments? Does {story_title} align with what you are seeing on the ground? (Post to r/nichecommunities)\n\n"
             
         elif insight['type'] == "Sentiment Swing":
             sector = data.get('sector', 'Market')
+            tag = sector.replace(' ', '')
             swing = data.get('swing', 0)
             direction = "UP" if data.get('current', 0) > data.get('previous', 0) else "DOWN"
-            md += f"### Twitter Thread-starter
-"
-            md += f"⚠️ SENTIMENT SHIFT: {sector} sentiment is {direction} by {swing*100:.1f}% in the last 24 hours. What's driving the change? Let's dive in. 🧵 #MarketSentiment #{sector}
-
-"
-            md += f"### LinkedIn Post
-"
-            md += f"Quantitative sentiment tracking for {sector} shows a significant {direction.lower()}swing. This kind of volatility often precedes major market movements. #DataScience #MarketAnalysis
-
-"
-            md += f"### Reddit Prompt
-"
-            md += f"Anyone else feeling a vibe shift in {sector} lately? Our data shows a big sentiment swing. (Post to r/investing)
-
-"
+            md += "### Twitter Thread-starter\n\n"
+            md += f"⚠️ SENTIMENT SHIFT: {sector} sentiment is {direction} by {swing*100:.1f}% in the last 24 hours. What's driving the change? Let's dive in. 🧵 #MarketSentiment #{tag}\n\n"
+            md += "### LinkedIn Post\n\n"
+            md += f"Quantitative sentiment tracking for {sector} shows a significant {direction.lower()} swing. This kind of volatility often precedes major market movements. {cta} #DataScience #MarketAnalysis #{tag}\n\n"
+            md += "### Reddit Prompt\n\n"
+            md += f"Anyone else feeling a vibe shift in {sector} lately? Our data shows a big sentiment swing. (Post to r/investing)\n\n"
             
         elif insight['type'] == "Premium Deep Dive":
             # Extract title from the markdown content (it's the first line starting with #)
             content = data.get('content', '# Industry Analysis')
-            title_line = content.split('
-')[0].replace('#', '').replace('Premium Deep Dive:', '').strip()
-            md += f"### Twitter Thread-starter
-"
-            md += f"🔓 UNLOCKED: Our latest Premium Deep-Dive on {title_line}. This is the intelligence that founders and investors are using to stay ahead. 🧵 #DeepDive #Intelligence
-
-"
-            md += f"### LinkedIn Post
-"
-            md += f"We just released a comprehensive analysis of {title_line}. In this premium brief, we explore the strategic implications and recommended actions for industry leaders. #Strategy #BusinessIntelligence
-
-"
-            md += f"### Reddit Prompt
-"
-            md += f"I just read a deep-dive on {title_line} - the data suggests some really interesting shifts. What are you seeing in this space? (Post to r/nichecommunities)
-
-"
+            title_line = content.split('\n')[0].replace('#', '').replace('Premium Deep Dive:', '').strip()
+            md += "### Twitter Thread-starter\n\n"
+            md += f"🔓 UNLOCKED: Our latest Premium Deep-Dive on {title_line}. This is the intelligence that founders and investors are using to stay ahead. 🧵 #DeepDive #Intelligence\n\n"
+            md += "### LinkedIn Post\n\n"
+            md += f"We just released a comprehensive analysis of {title_line}. In this premium brief, we explore the strategic implications and recommended actions for industry leaders. Upgrade to Premium for full access: https://buy.stripe.com/28EbJ1aLx6Qe8vk3FG9Ve00 #Strategy #BusinessIntelligence\n\n"
+            md += "### Reddit Prompt\n\n"
+            md += f"I just read a deep-dive on {title_line} - the data suggests some really interesting shifts. What are you seeing in this space? (Post to r/nichecommunities)\n\n"
             
-        md += "---
-
-"
+        md += "---\n\n"
         
     return md
 
 def generate_social_content(insights):
     api_key = os.environ.get('OPENAI_API_KEY')
-    if not api_key:
+    if not api_key or OpenAI is None:
         print("OPENAI_API_KEY not found in environment. Falling back to rule-based social content generation.")
         return generate_mock_content(insights)
 
@@ -196,9 +151,14 @@ def generate_social_content(insights):
     {json.dumps(insights, indent=2)}
     
     For EACH insight provided, generate:
-    1. A 'Thread-starter' for Twitter: Hook-driven, using emojis, designed to lead into a thread about the topic.
-    2. A 'Thought-leadership' post for LinkedIn: Professional yet provocative, providing an analysis of WHY this matters for the industry.
+    1. A 'Thread-starter' for Twitter: Hook-driven, using emojis, designed to lead into a thread about the topic. Include relevant hashtags (e.g. #Biotech, #ClimateTech).
+    2. A 'Thought-leadership' post for LinkedIn: Professional yet provocative, providing an analysis of WHY this matters for the industry. ALWAYS include the following call-to-action: "Read the full 5-minute brief on daily market signals at https://nichepulse.ai."
     3. A 'Niche Discussion' prompt for Reddit: Designed to spark a debate or request for experiences in a relevant subreddit (mention which one).
+    
+    GENERAL RULES:
+    - Avoid unprofessional phrasing or double negatives (e.g. use "without any" instead of "without no").
+    - Ensure hashtags correspond to the specific industry sector.
+    - Use double line breaks to visually separate paragraphs in LinkedIn posts.
     
     If the insight is a 'Premium Deep Dive', treat it as a high-value 'NichePulse Exclusive' to drive newsletter signups.
     

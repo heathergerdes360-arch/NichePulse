@@ -7,7 +7,10 @@ import MockCheckout from './pages/MockCheckout'
 import Settings from './pages/Settings'
 import Archive from './pages/Archive'
 import ArchiveDetail from './pages/ArchiveDetail'
+import Blog from './pages/Blog'
+import BlogDetail from './pages/BlogDetail'
 import Success from './pages/Success'
+import Pro from './pages/Pro'
 import Tracker from './components/Tracker'
 
 function App() {
@@ -23,7 +26,10 @@ function App() {
         <Route path="/settings" element={<Settings />} />
         <Route path="/archive" element={<Archive />} />
         <Route path="/archive/:id" element={<ArchiveDetail />} />
+        <Route path="/blog" element={<Blog />} />
+        <Route path="/blog/:id" element={<BlogDetail />} />
         <Route path="/success" element={<Success />} />
+        <Route path="/pro" element={<Pro />} />
         {/* Fallback to landing */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>\n    </BrowserRouter>

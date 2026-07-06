@@ -13,7 +13,6 @@ from openai import OpenAI
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 from db_utils import run_team_db
-
 def get_clinical_trials():
     print("Fetching longevity trials from ClinicalTrials.gov...")
     # Get trials added/updated in the last 30 days if possible, or just latest 10

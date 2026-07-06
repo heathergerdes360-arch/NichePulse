@@ -10,19 +10,6 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 from db_utils import run_team_db
-
-            try:
-                return json.loads(result.stdout)
-            except json.JSONDecodeError:
-                return []
-        except subprocess.CalledProcessError as e:
-            if "Locking error" in e.stderr or "database error" in e.stderr:
-                time.sleep(1 * (attempt + 1))
-                continue
-            print(f"Error: {e.stderr}")
-            return []
-    return []
-
 def get_unpromoted_market_stories():
     sql = "SELECT * FROM stories WHERE is_market_event = 1 AND promoted_to_event = 0"
     return run_team_db(sql)

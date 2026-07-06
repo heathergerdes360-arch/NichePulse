@@ -5,12 +5,6 @@ import re
 from datetime import datetime
 
 from db_utils import run_team_db
-
-        return json.loads(result.stdout)
-    except Exception as e:
-        print(f"Error running team-db: {e}")
-        return []
-
 def markdown_to_html(md_text):
     # Very basic markdown to HTML conversion
     html = md_text
@@ -25,8 +19,7 @@ def markdown_to_html(md_text):
     
     # Lists
     # First, handle line breaks for non-list items to avoid merging everything
-    lines = html.split('
-')
+    lines = html.split('\n')
     in_list = False
     new_lines = []
     for line in lines:

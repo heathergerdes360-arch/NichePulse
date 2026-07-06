@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle, Zap, ShieldCheck, CreditCard, Star, Mail } from 'lucide-react';
+import { X, CheckCircle, Zap, ShieldCheck, CreditCard, Star, Mail, Link2 } from 'lucide-react';
 import axios from 'axios';
 
 const API_BASE = `/api`;
@@ -30,7 +30,7 @@ const UpgradeModal = ({ isOpen, onClose, onUpgrade }) => {
 
     setLoading(true);
     try {
-      const res = await axios.get(`${API_BASE}/checkout-session?email=${encodeURIComponent(targetEmail)}`);
+      const res = await axios.post(`${API_BASE}/create-checkout-session`, { email: targetEmail });
       // Redirect to mock checkout URL
       window.location.href = res.data.url;
     } catch (err) {
@@ -48,9 +48,10 @@ const UpgradeModal = ({ isOpen, onClose, onUpgrade }) => {
   };
 
   const benefits = [
-    { icon: <Zap className="w-5 h-5 text-yellow-500" />, title: "Deep-Dive Analysis", desc: "Get detailed technical breakdowns of every signal." },
-    { icon: <ShieldCheck className="w-5 h-5 text-green-500" />, title: "Sentiment Tracking", desc: "Monitor market mood with real-time sentiment signals." },
-    { icon: <Star className="w-5 h-5 text-purple-500" />, title: "Historical Data Exports", desc: "Export intelligence reports for your own analysis." }
+    { icon: <Zap className="w-5 h-5 text-yellow-500" />, title: "Deep-Dive Analysis", desc: "Get detailed technical breakdowns and strategic impact analysis of every signal." },
+    { icon: <Link2 className="w-5 h-5 text-violet-500" />, title: "Signal Connectivity", desc: "Discover AI-identified cross-sector links between disparate industry shifts." },
+    { icon: <ShieldCheck className="w-5 h-5 text-green-500" />, title: "Sentiment Tracking", desc: "Monitor market mood with real-time community sentiment across 6 sectors." },
+    { icon: <Star className="w-5 h-5 text-cyan-500" />, title: "Historical Data Exports", desc: "Export intelligence reports, CSV, and PDF for your own analysis." }
   ];
 
   return (

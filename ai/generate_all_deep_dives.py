@@ -11,12 +11,6 @@ import os
 import sys
 
 from db_utils import run_team_db
-
-        return json.loads(result.stdout)
-    except Exception as e:
-        print(f"Error running team-db: {e}")
-        return []
-
 def main():
     # Identify stories with importance_score >= 8 or is_market_event = 1
     # that don't have a record in the deep_dives table.

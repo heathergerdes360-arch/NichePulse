@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import ReactMarkdown from 'react-markdown'
 import { Link } from 'react-router-dom'
-import { Newspaper, FileText, BarChart3, TrendingUp, TrendingDown, AlertTriangle, Crown, Sparkles, Minus, ArrowRight, Activity, Settings, Check } from 'lucide-react'
+import { Newspaper, FileText, BarChart3, TrendingUp, TrendingDown, AlertTriangle, Crown, Sparkles, Minus, ArrowRight, Activity, Settings, Check, Link2, Zap, Search, Lightbulb } from 'lucide-react'
 import UpgradeModal from '../components/UpgradeModal'
 import DeepDiveModal from './components/DeepDiveModal'
 import SentimentTrends from './components/SentimentTrends'
 import SentimentSnapshot from './components/SentimentSnapshot'
+import SignalConnectivity from './components/SignalConnectivity'
 
 const API_BASE = `/api`
 
@@ -102,6 +103,40 @@ function Dashboard() {
       case 'positive': return <TrendingUp className="w-3.5 h-3.5 mr-1" />
       case 'negative': return <TrendingDown className="w-3.5 h-3.5 mr-1" />
       default: return <Minus className="w-3.5 h-3.5 mr-1" />
+    }
+  }
+
+  // Signal Strength Bar — 5 segments matching social template visual
+  const SignalStrengthBar = ({ score, size = 'sm' }) => {
+    const filled = Math.min(5, Math.max(0, Math.round(score / 2)))
+    const segmentSize = size === 'sm' ? 'w-3 h-1.5' : 'w-4 h-2'
+    return (
+      <div className="flex items-center space-x-0.5" title={`Signal Strength: ${score}/10`}>
+        {[0, 1, 2, 3, 4].map(i => (
+          <div
+            key={i}
+            className={`${segmentSize} rounded-sm transition-all duration-300 ${
+              i < filled
+                ? i >= 3 ? 'bg-violet-500' : i >= 2 ? 'bg-violet-600' : 'bg-violet-700'
+                : 'bg-gray-200'
+            }`}
+          />
+        ))}
+      </div>
+    )
+  }
+
+  // Parse cross-sector links from story data (JSON string or array)
+  const getCrossSectorLinks = (story) => {
+    if (!story.cross_sector_links) return null
+    try {
+      const parsed = typeof story.cross_sector_links === 'string'
+        ? JSON.parse(story.cross_sector_links)
+        : story.cross_sector_links
+      return Array.isArray(parsed) ? parsed : null
+    } catch {
+      // If it's a plain string (comma-separated sectors), split it
+      return story.cross_sector_links.split(',').map(s => s.trim()).filter(Boolean)
     }
   }
 
@@ -262,7 +297,7 @@ function Dashboard() {
           <SentimentTrends />
         ) : (
           <div className="space-y-8">
-            {isPremium && <SentimentSnapshot />}
+            {/* Premium Banner (shown to non-premium) */}
             {!isPremium && (
               <div className="bg-gradient-to-r from-violet-600 to-indigo-700 rounded-2xl p-8 mb-4 text-white shadow-xl relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
@@ -275,7 +310,7 @@ function Dashboard() {
                       Get the Full Intelligence Edge
                     </h2>
                     <p className="text-blue-100 text-lg max-w-2xl font-medium">
-                      Unlock technical deep-dives, real-time sentiment alerts, and professional data exports. 
+                      Unlock technical deep-dives, cross-sector signal connections, real-time sentiment alerts, and professional data exports. 
                       Join the top 1% of founders and investors who move faster with NichePulse Premium.
                     </p>
                   </div>
@@ -290,170 +325,356 @@ function Dashboard() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            
-            {/* Left Column: Stories */}
-            <div className="lg:col-span-2 space-y-8">
+            {/* ============================================================ */}
+            {/* INTELLIGENCE LAYERS — Premium feature teaser/showcase section  */}
+            {/* ============================================================ */}
+            <div className="space-y-6">
+              {/* Section Header */}
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-display font-bold flex items-center">
-                  <Newspaper className="mr-2 w-5 h-5 text-violet-600" />
-                  Latest Industry Stories
-                </h2>
+                <div className="flex items-center space-x-3">
+                  <div className="bg-gradient-to-r from-violet-500 to-cyan-500 p-2 rounded-xl shadow-sm">
+                    <Zap className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-display font-bold text-gray-900">Intelligence Layers</h2>
+                    <p className="text-xs text-gray-500 font-medium">Premium AI-powered analysis, beyond the headlines</p>
+                  </div>
+                </div>
                 {isPremium && (
-                  <div className="text-xs font-display font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md border border-amber-100">
-                    Showing Premium Insights
+                  <div className="flex items-center space-x-1 text-[10px] font-display font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-200">
+                    <Sparkles className="w-3 h-3" />
+                    <span>ALL LAYERS ACTIVE</span>
                   </div>
                 )}
               </div>
 
-              {/* Quick Sector Filter */}
-              <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-wrap items-center gap-4 animate-in fade-in slide-in-from-top-2">
-                <div className="flex items-center space-x-2">
-                  <div className="w-1 h-4 bg-violet-600 rounded-full"></div>
-                  <span className="text-[10px] font-display font-black text-gray-500 uppercase tracking-wider">Industry Focus</span>
-                </div>
-                <div className="flex flex-wrap gap-x-6 gap-y-2">
-                  {categories.map(cat => (
-                    <label key={cat} className="flex items-center space-x-2 cursor-pointer group">
-                      <div className="relative flex items-center justify-center">
-                        <input 
-                          type="checkbox"
-                          checked={selectedSectors.includes(cat)}
-                          onChange={() => toggleSector(cat)}
-                          className="peer appearance-none w-5 h-5 rounded-md border-2 border-gray-200 checked:border-violet-600 checked:bg-violet-600 transition-all cursor-pointer"
-                        />
-                        <Check className={`absolute w-3.5 h-3.5 text-white pointer-events-none transition-opacity ${selectedSectors.includes(cat) ? 'opacity-100' : 'opacity-0'}`} />
+              {/* Intelligence Layers Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* --- LAYER 1: Signal Connectivity --- */}
+                {isPremium ? (
+                  <div className="lg:col-span-2">
+                    <SignalConnectivity />
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden group hover:shadow-md transition-all duration-300">
+                    <div className="bg-gradient-to-r from-violet-600/5 to-indigo-500/5 px-6 py-4 border-b border-gray-100">
+                      <div className="flex items-center space-x-3">
+                        <div className="bg-gradient-to-br from-violet-500 to-cyan-500 p-2 rounded-xl shadow-sm opacity-50">
+                          <Link2 className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-display font-black text-gray-900 flex items-center">
+                            Signal Connectivity
+                          </h3>
+                          <p className="text-xs text-gray-500 mt-0.5 font-medium">
+                            AI-powered cross-sector intelligence
+                          </p>
+                        </div>
                       </div>
-                      <span className={`text-sm font-display font-bold transition-colors ${selectedSectors.includes(cat) ? 'text-gray-900' : 'text-gray-400 group-hover:text-gray-600'}`}>
-                        {cat}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {categories.filter(cat => selectedSectors.includes(cat)).map(cat => (
-                <div key={cat} className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
-                  <h3 className="text-sm font-display font-bold text-gray-400 uppercase tracking-wider">{cat}</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {storiesByCategory[cat]?.length > 0 ? (
-                      storiesByCategory[cat].map(story => (
-                        <div key={story.id} className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow relative overflow-hidden group">
-                          {isPremium && (
-                            <div className="absolute top-0 right-0 p-1">
-                              <Sparkles className="w-3 h-3 text-amber-400 opacity-50 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                    <div className="p-6">
+                      <div className="flex items-center justify-center h-40">
+                        <div className="text-center space-y-4">
+                          <div className="flex items-center justify-center space-x-4 opacity-30">
+                            <div className="w-12 h-12 rounded-full bg-violet-100 flex items-center justify-center">
+                              <Cpu className="w-6 h-6 text-violet-400" />
                             </div>
-                          )}
-                          <div className="flex justify-between items-start mb-3">
-                            <span className={`text-[10px] uppercase tracking-wider font-display font-black px-2 py-1 rounded flex items-center ${getSentimentColor(story.sentiment)}`}>
-                              {getSentimentIcon(story.sentiment)}
-                              {story.sentiment}
-                            </span>
-                            <div className="flex items-center text-xs font-display font-bold text-gray-400 bg-gray-50 px-2 py-1 rounded-md border border-gray-100">
-                              <BarChart3 className="w-3.5 h-3.5 mr-1 text-violet-500" />
-                              SCORE: {story.importance_score}/10
+                            <ArrowRight className="w-6 h-6 text-gray-300" />
+                            <div className="w-12 h-12 rounded-full bg-cyan-100 flex items-center justify-center">
+                              <Beaker className="w-6 h-6 text-cyan-400" />
                             </div>
                           </div>
-                          <h4 className="font-display font-bold text-lg mb-2 leading-tight group-hover:text-violet-600 transition-colors">{story.title}</h4>
-                          <p className="text-gray-600 text-sm leading-relaxed mb-4 line-clamp-3">
-                            {story.summary}
-                          </p>
-                          <div className="flex justify-between items-center mt-auto pt-4 border-t border-gray-50">
-                            <div className="text-[10px] font-display font-bold text-gray-400 uppercase tracking-widest">
-                              {new Date(story.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                            </div>
-                            <button 
-                              onClick={() => handleDeepDive(story)}
-                              className={`flex items-center space-x-1 text-xs font-display font-black uppercase tracking-tighter transition-all ${
-                                isPremium 
-                                  ? 'text-violet-600 hover:text-violet-700' 
-                                  : 'text-gray-400 hover:text-violet-600'
-                              }`}
-                            >
-                              <span>Deep Dive</span>
-                              <ArrowRight className="w-3 h-3" />
-                            </button>
+                          <div>
+                            <p className="text-sm font-display font-bold text-gray-500">
+                              See the hidden connections between industries
+                            </p>
+                            <p className="text-xs text-gray-400 mt-1 max-w-xs mx-auto leading-relaxed">
+                              AI identifies non-obvious links between disparate sectors — like how AI regulation reshapes Biotech trial protocols.
+                            </p>
+                          </div>
+                          <button 
+                            onClick={() => setIsModalOpen(true)}
+                            className="inline-flex items-center space-x-2 px-5 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-display font-bold text-sm rounded-xl hover:shadow-lg hover:from-violet-700 hover:to-indigo-700 transition-all transform hover:scale-105 active:scale-95"
+                          >
+                            <Sparkles className="w-4 h-4" />
+                            <span>Unlock with Premium</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* --- LAYER 2: Premium Deep Dive --- */}
+                <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden group hover:shadow-md transition-all duration-300 ${isPremium ? '' : ''}`}>
+                  <div className="bg-gradient-to-r from-amber-500/5 to-orange-500/5 px-6 py-4 border-b border-gray-100">
+                    <div className="flex items-center space-x-3">
+                      <div className={`p-2 rounded-xl shadow-sm ${isPremium ? 'bg-gradient-to-br from-amber-400 to-orange-500' : 'bg-gradient-to-br from-amber-400/50 to-orange-500/50'}`}>
+                        <Search className={`w-5 h-5 ${isPremium ? 'text-white' : 'text-amber-300'}`} />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-display font-black text-gray-900 flex items-center">
+                          Premium Deep Dives
+                          {isPremium && (
+                            <span className="ml-2 text-[9px] font-display font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 uppercase tracking-wider">
+                              LIVE
+                            </span>
+                          )}
+                        </h3>
+                        <p className="text-xs text-gray-500 mt-0.5 font-medium">
+                          Technical insight extraction & strategic impact analysis
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-6">
+                    {isPremium ? (
+                      <div className="space-y-4">
+                        {/* Live Deep Dive Content */}
+                        <div className="flex items-center space-x-3 p-4 bg-amber-50/80 rounded-xl border border-amber-100">
+                          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                          <div>
+                            <p className="text-sm font-display font-bold text-gray-900">Active — Click any story to analyze</p>
+                            <p className="text-xs text-gray-500 mt-0.5">Technical breakdown, strategic impact, and actionable takeaways</p>
                           </div>
                         </div>
-                      ))
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                            <div className="text-[10px] font-display font-black text-gray-400 uppercase tracking-widest mb-1">Technical Extraction</div>
+                            <div className="text-xs font-display font-bold text-gray-800">Deep technical analysis of every signal</div>
+                          </div>
+                          <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                            <div className="text-[10px] font-display font-black text-gray-400 uppercase tracking-widest mb-1">Strategic Impact</div>
+                            <div className="text-xs font-display font-bold text-gray-800">Market positioning & competitive implications</div>
+                          </div>
+                          <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                            <div className="text-[10px] font-display font-black text-gray-400 uppercase tracking-widest mb-1">Actionable Takeaways</div>
+                            <div className="text-xs font-display font-bold text-gray-800">Concrete next steps for decision-makers</div>
+                          </div>
+                        </div>
+                        <div className="text-xs text-gray-400 italic flex items-center space-x-1">
+                          <Sparkles className="w-3 h-3 text-amber-400" />
+                          <span>Deep Dive modal opens when you click any story's "Deep Dive" button</span>
+                        </div>
+                      </div>
                     ) : (
-                      <div className="col-span-2 py-8 text-center text-gray-400 bg-gray-100/50 rounded-xl border border-dashed border-gray-200 font-medium">
-                        No {cat} stories yet.
+                      <div className="flex items-center justify-center h-40">
+                        <div className="text-center space-y-4">
+                          <div className="p-3 bg-amber-100/50 rounded-2xl inline-block mx-auto">
+                            <Search className="w-8 h-8 text-amber-400" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-display font-bold text-gray-500">
+                              Go beyond the headline
+                            </p>
+                            <p className="text-xs text-gray-400 mt-1 max-w-xs mx-auto leading-relaxed">
+                              Get AI-powered deep dives with technical insight extraction, strategic impact analysis, and actionable takeaways for every signal.
+                            </p>
+                          </div>
+                          <button 
+                            onClick={() => setIsModalOpen(true)}
+                            className="inline-flex items-center space-x-2 px-5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-display font-bold text-sm rounded-xl hover:shadow-lg hover:from-amber-600 hover:to-orange-600 transition-all transform hover:scale-105 active:scale-95"
+                          >
+                            <Sparkles className="w-4 h-4" />
+                            <span>Unlock with Premium</span>
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
                 </div>
-              ))}
+              </div>
             </div>
 
-            {/* Right Column: Reports */}
-            <div className="space-y-8">
-              <h2 className="text-xl font-display font-bold flex items-center">
-                <FileText className="mr-2 w-5 h-5 text-violet-600" />
-                Daily Briefs
-              </h2>
+            {/* Premium Sentiment Snapshot */}
+            {isPremium && <SentimentSnapshot />}
 
-              <div className="space-y-3">
-                {reports.map(report => (
-                  <button
-                    key={report.id}
-                    onClick={() => setSelectedReport(report)}
-                    className={`w-full text-left p-4 rounded-xl border transition-all ${
-                      selectedReport?.id === report.id
-                        ? 'bg-violet-50 border-blue-200 shadow-sm'
-                        : 'bg-white border-gray-100 hover:border-blue-200'
-                    }`}
-                  >
-                    <div className="flex justify-between items-center">
-                      <div className="font-display font-bold">{report.date}</div>
-                      {isPremium && <Crown className="w-3 h-3 text-amber-400" />}
+            {/* Stories + Reports Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+              {/* Left Column: Stories */}
+              <div className="lg:col-span-2 space-y-8">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-display font-bold flex items-center">
+                    <Newspaper className="mr-2 w-5 h-5 text-violet-600" />
+                    Latest Industry Stories
+                  </h2>
+                  {isPremium && (
+                    <div className="text-xs font-display font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md border border-amber-100">
+                      Showing Premium Insights
                     </div>
-                    <div className="text-xs text-gray-500 mt-1 capitalize font-medium">{report.type} Intelligence Report</div>
-                  </button>
+                  )}
+                </div>
+
+                {/* Quick Sector Filter */}
+                <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-wrap items-center gap-4 animate-in fade-in slide-in-from-top-2">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-1 h-4 bg-violet-600 rounded-full"></div>
+                    <span className="text-[10px] font-display font-black text-gray-500 uppercase tracking-wider">Industry Focus</span>
+                  </div>
+                  <div className="flex flex-wrap gap-x-6 gap-y-2">
+                    {categories.map(cat => (
+                      <label key={cat} className="flex items-center space-x-2 cursor-pointer group">
+                        <div className="relative flex items-center justify-center">
+                          <input 
+                            type="checkbox"
+                            checked={selectedSectors.includes(cat)}
+                            onChange={() => toggleSector(cat)}
+                            className="peer appearance-none w-5 h-5 rounded-md border-2 border-gray-200 checked:border-violet-600 checked:bg-violet-600 transition-all cursor-pointer"
+                          />
+                          <Check className={`absolute w-3.5 h-3.5 text-white pointer-events-none transition-opacity ${selectedSectors.includes(cat) ? 'opacity-100' : 'opacity-0'}`} />
+                        </div>
+                        <span className={`text-sm font-display font-bold transition-colors ${selectedSectors.includes(cat) ? 'text-gray-900' : 'text-gray-400 group-hover:text-gray-600'}`}>
+                          {cat}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {categories.filter(cat => selectedSectors.includes(cat)).map(cat => (
+                  <div key={cat} className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+                    <h3 className="text-sm font-display font-bold text-gray-400 uppercase tracking-wider">{cat}</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {storiesByCategory[cat]?.length > 0 ? (
+                        storiesByCategory[cat].map(story => (
+                          <div key={story.id} className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow relative overflow-hidden group">
+                            {isPremium && (
+                              <div className="absolute top-0 right-0 p-1">
+                                <Sparkles className="w-3 h-3 text-amber-400 opacity-50 group-hover:opacity-100 transition-opacity" />
+                              </div>
+                            )}
+                            <div className="flex justify-between items-start mb-3">
+                              <span className={`text-[10px] uppercase tracking-wider font-display font-black px-2 py-1 rounded flex items-center ${getSentimentColor(story.sentiment)}`}>
+                                {getSentimentIcon(story.sentiment)}
+                                {story.sentiment}
+                              </span>
+                              <div className="flex items-center space-x-2">
+                              <SignalStrengthBar score={story.importance_score} />
+                              <span className="text-[10px] font-display font-bold text-gray-400 tabular-nums">{story.importance_score}/10</span>
+                            </div>
+                            </div>
+                            <h4 className="font-display font-bold text-lg mb-2 leading-tight group-hover:text-violet-600 transition-colors">{story.title}</h4>
+                            <p className="text-gray-600 text-sm leading-relaxed mb-3 line-clamp-3">
+                              {story.summary}
+                            </p>
+                            {/* Cross-Sector Links — premium feature */}
+                            {isPremium && getCrossSectorLinks(story) && getCrossSectorLinks(story).length > 0 && (
+                              <div className="mb-3 flex flex-wrap items-center gap-1.5">
+                                <span className="text-[9px] font-display font-black text-violet-500 uppercase tracking-wider flex items-center">
+                                  <Link2 className="w-2.5 h-2.5 mr-0.5" />
+                                  Links:
+                                </span>
+                                {getCrossSectorLinks(story).map((link, idx) => {
+                                  const sectorName = typeof link === 'string' ? link : (link.sector || link.name || '')
+                                  const sectorColor = typeof link === 'object' && link.color ? link.color : 'violet'
+                                  return (
+                                    <span
+                                      key={idx}
+                                      className="text-[9px] font-display font-bold px-1.5 py-0.5 rounded-md border bg-violet-50 text-violet-700 border-violet-200 uppercase tracking-wider"
+                                    >
+                                      {sectorName}
+                                    </span>
+                                  )
+                                })}
+                              </div>
+                            )}
+                            <div className="flex justify-between items-center mt-auto pt-4 border-t border-gray-50">
+                              <div className="text-[10px] font-display font-bold text-gray-400 uppercase tracking-widest">
+                                {new Date(story.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                              </div>
+                              <button 
+                                onClick={() => handleDeepDive(story)}
+                                className={`flex items-center space-x-1 text-xs font-display font-black uppercase tracking-tighter transition-all ${
+                                  isPremium 
+                                    ? 'text-violet-600 hover:text-violet-700' 
+                                    : 'text-gray-400 hover:text-violet-600'
+                                }`}
+                              >
+                                <span>Deep Dive</span>
+                                <ArrowRight className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="col-span-2 py-8 text-center text-gray-400 bg-gray-100/50 rounded-xl border border-dashed border-gray-200 font-medium">
+                          No {cat} stories yet.
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 ))}
               </div>
 
-              {selectedReport && (
-                <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden ring-1 ring-black/5">
-                  <div className="bg-gray-50 px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-                    <h3 className="font-display font-bold text-gray-900">Report Content</h3>
-                    <div className="flex items-center space-x-3">
-                      {isPremium && (
-                        <>
+              {/* Right Column: Reports */}
+              <div className="space-y-8">
+                <h2 className="text-xl font-display font-bold flex items-center">
+                  <FileText className="mr-2 w-5 h-5 text-violet-600" />
+                  Daily Briefs
+                </h2>
+
+                <div className="space-y-3">
+                  {reports.map(report => (
+                    <button
+                      key={report.id}
+                      onClick={() => setSelectedReport(report)}
+                      className={`w-full text-left p-4 rounded-xl border transition-all ${
+                        selectedReport?.id === report.id
+                          ? 'bg-violet-50 border-blue-200 shadow-sm'
+                          : 'bg-white border-gray-100 hover:border-blue-200'
+                      }`}
+                    >
+                      <div className="flex justify-between items-center">
+                        <div className="font-display font-bold">{report.date}</div>
+                        {isPremium && <Crown className="w-3 h-3 text-amber-400" />}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1 capitalize font-medium">{report.type} Intelligence Report</div>
+                    </button>
+                  ))}
+                </div>
+
+                {selectedReport && (
+                  <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden ring-1 ring-black/5">
+                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+                      <h3 className="font-display font-bold text-gray-900">Report Content</h3>
+                      <div className="flex items-center space-x-3">
+                        {isPremium && (
+                          <>
+                            <button 
+                              onClick={() => exportData('csv', selectedReport)}
+                              className="text-[10px] font-display font-bold text-gray-400 uppercase tracking-widest hover:text-violet-600"
+                            >
+                              CSV
+                            </button>
+                            <button 
+                              onClick={() => exportData('json', selectedReport)}
+                              className="text-[10px] font-display font-bold text-gray-400 uppercase tracking-widest hover:text-violet-600"
+                            >
+                              JSON
+                            </button>
+                          </>
+                        )}
+                        {isPremium && (
                           <button 
-                            onClick={() => exportData('csv', selectedReport)}
-                            className="text-[10px] font-display font-bold text-gray-400 uppercase tracking-widest hover:text-violet-600"
+                            onClick={() => exportData('pdf', selectedReport)}
+                            className="text-[10px] font-display font-bold text-violet-600 uppercase tracking-widest hover:text-violet-700"
                           >
-                            CSV
+                            Export PDF
                           </button>
-                          <button 
-                            onClick={() => exportData('json', selectedReport)}
-                            className="text-[10px] font-display font-bold text-gray-400 uppercase tracking-widest hover:text-violet-600"
-                          >
-                            JSON
-                          </button>
-                        </>
-                      )}
-                      {isPremium && (
-                        <button 
-                          onClick={() => exportData('pdf', selectedReport)}
-                          className="text-[10px] font-display font-bold text-violet-600 uppercase tracking-widest hover:text-violet-700"
-                        >
-                          Export PDF
-                        </button>
-                      )}
+                        )}
+                      </div>
+                    </div>
+                    <div className="p-6 prose prose-sm max-w-none prose-blue overflow-y-auto max-h-[600px] bg-white">
+                      <ReactMarkdown>{selectedReport.content}</ReactMarkdown>
                     </div>
                   </div>
-                  <div className="p-6 prose prose-sm max-w-none prose-blue overflow-y-auto max-h-[600px] bg-white">
-                    <ReactMarkdown>{selectedReport.content}</ReactMarkdown>
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </main>
+        )}
+      </main>
 
       <footer className="max-w-7xl mx-auto px-6 py-12 border-t border-gray-200 mt-12">
         <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0 text-sm text-gray-400">

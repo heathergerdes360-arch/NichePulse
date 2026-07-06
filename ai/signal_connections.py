@@ -36,6 +36,8 @@ def identify_signal_connections(stories):
     You are a high-level strategic analyst for NichePulse, an intelligence platform for professional investors and founders.
     Your task is to identify NON-OBVIOUS cross-sector connections between today's intelligence signals.
     
+    Maintain professional grammar and avoid double negatives (e.g., use "without any" instead of "without no").
+
     Look for:
     - How a regulatory change in one sector (e.g., AI) might impact funding or development in another (e.g., Biotech, Climate Tech).
     - How a technical breakthrough in one area could be the 'missing piece' for a challenge in another area (e.g., how Geroscience trial data could inform AI-driven drug discovery models).
@@ -80,10 +82,18 @@ def identify_connections_fallback(stories):
         })
     
     if 'ai' in categories and ('biotech' in categories or 'longevity' in categories):
-        connections.append({
-            "title": "AI-Driven Geroscience Synthesis",
-            "body": "Emerging readouts from niche geroscience trials are providing the high-fidelity longitudinal data required to train next-generation AI drug discovery models. We identify a strategic opportunity for platforms connecting clinical trial 'exhaust' to generative biology pipelines."
-        })
+        # Look for regulatory keywords
+        all_text = " ".join([s.get('title', '') + " " + s.get('summary', '') for s in stories]).lower()
+        if any(word in all_text for word in ["regulation", "regulatory", "policy", "fda"]):
+            connections.append({
+                "title": "Cross-Sector Regulatory Spillover",
+                "body": "Emerging AI safety regulations are beginning to influence computational biology compliance frameworks. We anticipate that 'explainability' requirements for frontier models will soon be mandated for AI-driven clinical trial designs, impacting Biotech speed-to-market."
+            })
+        else:
+            connections.append({
+                "title": "AI-Driven Geroscience Synthesis",
+                "body": "Emerging readouts from niche geroscience trials are providing the high-fidelity longitudinal data required to train next-generation AI drug discovery models. We identify a strategic opportunity for platforms connecting clinical trial 'exhaust' to generative biology pipelines."
+            })
     
     if 'ai' in categories and 'signal_gap' in categories:
         connections.append({
@@ -104,17 +114,14 @@ def identify_connections_fallback(stories):
         })
 
     if not connections:
-        return "## 💎 Premium Deep-Dive: Signal Connections
+        return """## 💎 Premium Deep-Dive: Signal Connections
 
-No significant cross-sector convergences identified in today's limited signal stream. Monitoring second-order effects of recent regulatory shifts."
+No significant cross-sector convergences identified in today's limited signal stream. Monitoring second-order effects of recent regulatory shifts."""
 
-    md = "## 💎 Premium Deep-Dive: Signal Connections
+    md = """## 💎 Premium Deep-Dive: Signal Connections
 
-"
+"""
     for conn in connections[:3]:
-        md += f"### {conn['title']}
-{conn['body']}
-
-"
+        md += f"### {conn['title']}\n{conn['body']}\n\n"
     
     return md

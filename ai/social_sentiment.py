@@ -9,19 +9,6 @@ import time
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 from db_utils import run_team_db
-
-            try:
-                return json.loads(result.stdout)
-            except json.JSONDecodeError:
-                return []
-        except subprocess.CalledProcessError as e:
-            if "Locking error" in e.stderr or "database error" in e.stderr:
-                time.sleep(2 * (attempt + 1))
-                continue
-            print(f"Error: {e.stderr}")
-            return []
-    return []
-
 def get_unprocessed_social_signals():
     # Fetch signals from social sources that don't have sentiment
     sources = "('reddit', 'hackernews', 'producthunt', 'Twitter')"
