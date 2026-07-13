@@ -34,10 +34,12 @@ const Landing = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await axios.post(`/api/subscribe`, { 
-        email,
-        ref: refCode 
-      });
+      // Build payload — only include ref if a real referral code exists
+      const payload = { email };
+      if (refCode) {
+        payload.referredBy = refCode;
+      }
+      const response = await axios.post(`/api/subscribe`, payload);
       localStorage.setItem('nichepulse_email', email);
       setSuccess(true);
       setTimeout(() => {

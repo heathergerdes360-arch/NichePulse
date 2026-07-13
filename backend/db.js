@@ -81,7 +81,7 @@ async function query(sql, params = [], maxRetries = 5) {
         await new Promise(resolve => setTimeout(resolve, delay));
         delay *= 2;
       }
-    part 54|    }
+    }
   }
 
   throw new Error(`Database query failed after ${maxRetries} attempts. Last error: ${lastError.message}`);

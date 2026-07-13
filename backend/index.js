@@ -2,9 +2,18 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const crypto = require('crypto');
+const path = require('path');
 const { query, escape } = require('./db');
 
 dotenv.config();
+
+const stripe = process.env.STRIPE_SECRET_KEY 
+  ? require('stripe')(process.env.STRIPE_SECRET_KEY)
+  : null;
+
+if (!stripe) {
+  console.warn('WARNING: STRIPE_SECRET_KEY not set — Stripe checkout will use static payment link fallback');
+}
 
 const app = express();
 const port = process.env.PORT || 3002;
@@ -30,9 +39,159 @@ const adminAuth = (req, res, next) => {
   next();
 };
 
+// --- Premium Authorization Middleware ---
+const requirePremium = async (req, res, next) => {
+  const email = req.query.email || req.body?.email;
+  if (!email) {
+    return res.status(401).json({ error: 'Email parameter required for premium access' });
+  }
+  try {
+    const subscribers = await query(`SELECT is_premium FROM subscribers WHERE email = '${escape(email)}'`);
+    if (subscribers.length === 0 || !subscribers[0].is_premium) {
+      return res.status(403).json({ error: 'Premium subscription required' });
+    }
+    next();
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to verify premium status' });
+  }
+};
+
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
   next();
+});
+
+// ============================================================
+// MAGIC AUTH SYSTEM
+// ============================================================
+
+// Session Auth Middleware — extracts user from session token
+const requireSession = async (req, res, next) => {
+  const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  try {
+    const sessions = await query(`SELECT * FROM sessions WHERE id = '${escape(token)}' AND is_active = 1 AND expires_at > datetime('now')`);
+    if (sessions.length === 0) {
+      return res.status(401).json({ error: 'Session expired or invalid' });
+    }
+    req.user = { email: sessions[0].email, sessionId: sessions[0].id };
+    // Update last_used_at
+    await query(`UPDATE sessions SET last_used_at = datetime('now') WHERE id = '${escape(token)}'`);
+    next();
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// POST /api/auth/send-magic-link — Generate and log magic link token
+app.post('/api/auth/send-magic-link', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+
+  try {
+    // Check subscriber exists
+    const subscriber = await query(`SELECT email FROM subscribers WHERE email = '${escape(email)}'`);
+    if (subscriber.length === 0) {
+      // Don't reveal whether email exists, just return success
+      return res.json({ success: true, message: 'If this email is registered, a magic link has been sent.' });
+    }
+
+    // Generate a secure random token
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 min expiry
+
+    // Store token
+    await query(`INSERT INTO auth_tokens (email, token, expires_at) VALUES ('${escape(email)}', '${escape(token)}', '${escape(expiresAt)}')`);
+
+    // Build magic link
+    const baseUrl = req.headers.origin || 'http://localhost:3000';
+    const magicLink = `${baseUrl}/auth/verify?token=${token}`;
+
+    console.log(`\n=== MAGIC LINK for ${email} ===`);
+    console.log(`  ${magicLink}`);
+    console.log(`  Expires: ${expiresAt}\n`);
+
+    // Try to send email — log the link if email sending fails
+    // In production, this would use an email service (SendGrid, SES, etc.)
+    
+    res.json({ success: true, message: 'Magic link sent! Check your email (or server logs).', devLink: magicLink });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/auth/verify — Verify magic link token and create session
+app.post('/api/auth/verify', async (req, res) => {
+  const { token } = req.body;
+  if (!token) return res.status(400).json({ error: 'Token is required' });
+
+  try {
+    // Find valid, unused token
+    const tokens = await query(`SELECT * FROM auth_tokens WHERE token = '${escape(token)}' AND used = 0 AND expires_at > datetime('now')`);
+    if (tokens.length === 0) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+
+    const { email } = tokens[0];
+
+    // Mark token as used
+    await query(`UPDATE auth_tokens SET used = 1 WHERE token = '${escape(token)}'`);
+
+    // Create session (30 days expiry)
+    const sessionId = crypto.randomBytes(32).toString('hex');
+    const sessionExpires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    await query(`INSERT INTO sessions (id, email, expires_at) VALUES ('${escape(sessionId)}', '${escape(email)}', '${escape(sessionExpires)}')`);
+
+    // Get subscriber info
+    const subscriber = await query(`SELECT * FROM subscribers WHERE email = '${escape(email)}'`);
+
+    res.json({
+      success: true,
+      sessionToken: sessionId,
+      expiresAt: sessionExpires,
+      user: subscriber.length > 0 ? {
+        email: subscriber[0].email,
+        isPremium: !!subscriber[0].is_premium,
+        subscriptionTier: subscriber[0].subscription_tier,
+        referralCode: subscriber[0].referral_code,
+        interestedSectors: subscriber[0].interested_sectors
+      } : { email }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/auth/me — Get current user from session token
+app.get('/api/auth/me', requireSession, async (req, res) => {
+  try {
+    const subscriber = await query(`SELECT * FROM subscribers WHERE email = '${escape(req.user.email)}'`);
+    res.json({
+      authenticated: true,
+      email: req.user.email,
+      sessionId: req.user.sessionId,
+      user: subscriber.length > 0 ? {
+        email: subscriber[0].email,
+        isPremium: !!subscriber[0].is_premium,
+        subscriptionTier: subscriber[0].subscription_tier,
+        referralCode: subscriber[0].referral_code,
+        interestedSectors: subscriber[0].interested_sectors
+      } : { email: req.user.email }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/auth/logout — Invalidate session
+app.post('/api/auth/logout', async (req, res) => {
+  const token = req.headers['authorization']?.replace('Bearer ', '');
+  if (token) {
+    await query(`UPDATE sessions SET is_active = 0 WHERE id = '${escape(token)}'`);
+  }
+  res.json({ success: true, message: 'Logged out' });
 });
 
 // --- Health Check ---
@@ -109,7 +268,7 @@ app.get(['/api/stories/export', '/api/export-stories'], async (req, res) => {
 
   try {
     // Check if user is premium
-    const subscriber = await query(`SELECT is_premium FROM subscribers WHERE email = '${escape(email)}'`);
+    const subscriber = await query(`SELECT is_premium FROM subscribers WHERE email = ${escape(email)}`);
     if (subscriber.length === 0 || !subscriber[0].is_premium) {
       return res.status(403).json({ error: 'Premium subscription required for data export' });
     }
@@ -117,13 +276,13 @@ app.get(['/api/stories/export', '/api/export-stories'], async (req, res) => {
     // Build the query with filters
     let sql = "SELECT title, summary, sentiment, sentiment_score, importance_score, category, created_at FROM stories WHERE 1=1";
     if (category) {
-      sql += ` AND category = '${escape(category)}'`;
+      sql += ` AND category = ${escape(category)}`;
     }
     if (start_date) {
-      sql += ` AND created_at >= '${escape(start_date)}'`;
+      sql += ` AND created_at >= ${escape(start_date)}`;
     }
     if (end_date) {
-      sql += ` AND created_at <= '${escape(end_date)}'`;
+      sql += ` AND created_at <= ${escape(end_date)}`;
     }
     sql += " ORDER BY created_at DESC";
 
@@ -160,7 +319,7 @@ app.get(['/api/stories/export', '/api/export-stories'], async (req, res) => {
 
 app.get('/api/stories/:id', async (req, res) => {
   try {
-    const story = await query(`SELECT * FROM stories WHERE id = '${escape(req.params.id)}'`);
+    const story = await query(`SELECT * FROM stories WHERE id = ${escape(req.params.id)}`);
     if (story.length === 0) return res.status(404).json({ error: 'Story not found' });
     res.json(story[0]);
   } catch (err) {
@@ -171,7 +330,7 @@ app.get('/api/stories/:id', async (req, res) => {
 // --- Subscribers ---
 app.get('/api/subscribers/:email', async (req, res) => {
   try {
-    const subscriber = await query(`SELECT * FROM subscribers WHERE email = '${escape(req.params.email)}'`);
+    const subscriber = await query(`SELECT * FROM subscribers WHERE email = ${escape(req.params.email)}`);
     if (subscriber.length === 0) return res.status(404).json({ error: 'Subscriber not found' });
     res.json(subscriber[0]);
   } catch (err) {
@@ -183,12 +342,12 @@ app.patch('/api/subscribers/:email', async (req, res) => {
   const { interested_sectors, sentiment_alerts } = req.body;
   try {
     let updates = [];
-    if (interested_sectors) updates.push(`interested_sectors = '${escape(JSON.stringify(interested_sectors))}'`);
+    if (interested_sectors) updates.push(`interested_sectors = ${escape(JSON.stringify(interested_sectors))}`);
     if (sentiment_alerts !== undefined) updates.push(`sentiment_alerts = ${sentiment_alerts ? 1 : 0}`);
     
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
     
-    await query(`UPDATE subscribers SET ${updates.join(', ')} WHERE email = '${escape(req.params.email)}'`);
+    await query(`UPDATE subscribers SET ${updates.join(', ')} WHERE email = ${escape(req.params.email)}`);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -197,11 +356,11 @@ app.patch('/api/subscribers/:email', async (req, res) => {
 
 app.get('/api/subscribers/:email/referrals', async (req, res) => {
   try {
-    const subscriber = await query(`SELECT referral_code FROM subscribers WHERE email = '${escape(req.params.email)}'`);
+    const subscriber = await query(`SELECT referral_code FROM subscribers WHERE email = ${escape(req.params.email)}`);
     if (subscriber.length === 0) return res.status(404).json({ error: 'Subscriber not found' });
     
     const code = subscriber[0].referral_code;
-    const referrals = await query(`SELECT email, created_at FROM subscribers WHERE referred_by = '${escape(code)}'`);
+    const referrals = await query(`SELECT email, created_at FROM subscribers WHERE referred_by = ${escape(code)}`);
     res.json({
       count: referrals.length,
       referrals: referrals
@@ -216,12 +375,32 @@ app.post('/api/subscribe', async (req, res) => {
   if (!email) return res.status(400).json({ error: 'Email is required' });
   
   try {
+    // Generate a unique referral code for the new subscriber
+    const referralCode = crypto.randomBytes(4).toString('hex');
     const sectorsJson = JSON.stringify(sectors || []);
-    await query(`INSERT INTO subscribers (email, interested_sectors, referred_by) VALUES ('${escape(email)}', '${escape(sectorsJson)}', ${referredBy ? `'${escape(referredBy)}'` : 'NULL'})`);
-    res.status(201).json({ message: 'Subscribed successfully' });
+    
+    // Only use referredBy if it's truthy and doesn't look like 'null' or 'undefined'
+    const validReferral = referredBy && referredBy !== 'null' && referredBy !== 'undefined' 
+      ? escape(referredBy) 
+      : 'NULL';
+    
+    const subscriberId = crypto.randomUUID();
+    await query(`INSERT INTO subscribers (id, email, interested_sectors, referred_by, referral_code) VALUES (${escape(subscriberId)}, ${escape(email)}, ${escape(sectorsJson)}, ${validReferral}, ${escape(referralCode)})`);
+    
+    // If referred by someone, log the referral
+    if (validReferral !== 'NULL') {
+      await query(`INSERT INTO referrals (referrer_email, referred_email, status) VALUES (${escape(referredBy)}, ${escape(email)}, 'pending')`);
+    }
+    
+    res.status(201).json({ message: 'Subscribed successfully', referralCode });
   } catch (err) {
     if (err.message.includes('UNIQUE constraint failed')) {
       return res.status(400).json({ error: 'Email already subscribed' });
+    }
+    if (err.message.includes('no such table')) {
+      // referrals table might not exist in older schemas
+      console.warn('Referrals table not found, skipping referral logging:', err.message);
+      return res.status(201).json({ message: 'Subscribed successfully', referralCode });
     }
     res.status(500).json({ error: err.message });
   }
@@ -235,7 +414,7 @@ app.post('/api/track', async (req, res) => {
   const ipHash = crypto.createHash('md5').update(ip || '').digest('hex');
 
   try {
-    await query(`INSERT INTO traffic_logs (path, referrer, utm_source, user_agent, ip_hash) VALUES ('${escape(path)}', '${escape(referrer)}', '${escape(utm_source)}', '${escape(userAgent)}', '${escape(ipHash)}')`);
+    await query(`INSERT INTO traffic_logs (path, referrer, utm_source, user_agent, ip_hash) VALUES (${escape(path)}, ${escape(referrer)}, ${escape(utm_source)}, ${escape(userAgent)}, ${escape(ipHash)})`);
     res.status(200).json({ success: true });
   } catch (err) {
     console.error('Tracking error:', err.message);
@@ -273,24 +452,113 @@ app.get('/sitemap.xml', async (req, res) => {
 const { STRIPE_PAYMENT_LINK } = require('./config');
 
 // --- Stripe Integration ---
+// POST /api/create-checkout-session — Creates a Stripe Checkout Session (or falls back to static link)
 app.post('/api/create-checkout-session', async (req, res) => {
-  const { email } = req.body;
+  const { email, plan } = req.body;
   if (!email) return res.status(400).json({ error: 'Email is required' });
 
-  // Use the real Stripe payment link
-  // In a production app, we might append the email as a client_reference_id or metadata
+  const successUrl = process.env.STRIPE_SUCCESS_URL || 'https://nichepulse.ai/dashboard';
+  const cancelUrl = process.env.STRIPE_CANCEL_URL || 'https://nichepulse.ai/pricing';
+  const priceId = plan === 'annual' 
+    ? (process.env.STRIPE_ANNUAL_PRICE_ID || process.env.STRIPE_PRICE_ID)
+    : process.env.STRIPE_PRICE_ID;
+
+  if (stripe && priceId) {
+    try {
+      const session = await stripe.checkout.sessions.create({
+        mode: 'subscription',
+        line_items: [{ price: priceId, quantity: 1 }],
+        customer_email: email,
+        success_url: `${successUrl}?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: cancelUrl,
+        metadata: { email, plan: plan || 'monthly' },
+      });
+      return res.json({ url: session.url, sessionId: session.id, plan: plan || 'monthly' });
+    } catch (err) {
+      console.error('Stripe session creation error:', err.message);
+      // Fall back to static link on error
+    }
+  }
+
+  // Fallback: static payment link with prefilled email
   const paymentUrl = `${STRIPE_PAYMENT_LINK}?prefilled_email=${encodeURIComponent(email)}`;
-  res.json({ url: paymentUrl });
+  res.json({ url: paymentUrl, plan: plan || 'monthly' });
 });
 
-app.post('/api/confirm-payment', async (req, res) => {
-  const { email } = req.body;
-  try {
-    await query(`UPDATE subscribers SET is_premium = 1 WHERE email = '${escape(email)}'`);
-    res.json({ success: true, message: 'User upgraded to Premium' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+// POST /api/stripe-webhook — Handles Stripe webhook events
+app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  if (!stripe || !webhookSecret) {
+    return res.status(200).json({ received: true, note: 'Webhook not configured' });
   }
+
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+  } catch (err) {
+    console.error('Stripe webhook signature verification failed:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  // Handle the event
+  switch (event.type) {
+    case 'checkout.session.completed': {
+      const session = event.data.object;
+      const email = session.metadata?.email || session.customer_email;
+      if (email) {
+        try {
+          await query(`UPDATE subscribers SET is_premium = 1, subscription_tier = ${escape(session.metadata?.plan || 'monthly')}, premium_expires_at = datetime('now', '+1 month') WHERE email = ${escape(email)}`);
+          console.log(`Premium activated for ${email} via webhook`);
+
+          // Check if this user was referred by someone
+          const subscriber = await query(`SELECT referred_by FROM subscribers WHERE email = ${escape(email)}`);
+          if (subscriber.length > 0 && subscriber[0].referred_by) {
+            await query(`UPDATE referrals SET status = 'converted', converted_at = datetime('now') WHERE referred_email = ${escape(email)} AND status = 'pending'`);
+          }
+        } catch (dbErr) {
+          console.error('Webhook DB update error:', dbErr.message);
+        }
+      }
+      break;
+    }
+    case 'customer.subscription.updated':
+    case 'customer.subscription.deleted': {
+      const subscription = event.data.object;
+      try {
+        // Get email from subscription metadata first, then fall back to customer lookup
+        let subscriberEmail = subscription.metadata?.email;
+
+        if (!subscriberEmail && subscription.customer) {
+          const customer = await stripe.customers.retrieve(subscription.customer);
+          subscriberEmail = customer.email;
+        }
+
+        if (subscriberEmail) {
+          if (event.type === 'customer.subscription.deleted' || subscription.status === 'past_due' || subscription.status === 'canceled' || subscription.status === 'unpaid' || subscription.status === 'incomplete_expired') {
+            await query(`UPDATE subscribers SET is_premium = 0, premium_expires_at = datetime('now') WHERE email = ${escape(subscriberEmail)}`);
+            console.log(`Premium deactivated for ${subscriberEmail} via webhook (${event.type}, status=${subscription.status})`);
+          } else if (subscription.status === 'active' || subscription.status === 'trialing') {
+            // Map Stripe interval to our plan name
+            const interval = subscription.items?.data?.[0]?.plan?.interval || 'month';
+            const plan = interval === 'year' ? 'annual' : 'monthly';
+            await query(`UPDATE subscribers SET is_premium = 1, subscription_tier = ${escape(plan)}, premium_expires_at = datetime('now', '+1 month') WHERE email = ${escape(subscriberEmail)}`);
+            console.log(`Premium reactivated for ${subscriberEmail} via webhook (${event.type}, status=${subscription.status})`);
+          }
+        } else {
+          console.log(`Subscription ${event.type}: no email found for customer ${subscription.customer}`);
+        }
+      } catch (err) {
+        console.error(`Webhook subscription handler error (${event.type}):`, err.message);
+      }
+      break;
+    }
+    default:
+      console.log(`Unhandled event type: ${event.type}`);
+  }
+
+  res.json({ received: true });
 });
 
 // --- Sentiment History ---
@@ -321,31 +589,20 @@ app.get('/api/sentiment/snapshot', async (req, res) => {
 });
 
 // --- Admin Stats ---
-app.get('/api/admin/stats', async (req, res) => {
+app.get('/api/admin/stats', adminAuth, async (req, res) => {
   try {
-    const [
-      subscribersCount,
-      growthCount,
-      signalsCount,
-      storiesCount,
-      referralsCount,
-      topReferrers,
-      sectorInterests,
-      trafficStats,
-      topTrafficSources,
-      highPotentialLeads
-    ] = await Promise.all([
-      query('SELECT COUNT(*) as count FROM subscribers'),
-      query("SELECT COUNT(*) as count FROM subscribers WHERE created_at > datetime('now', '-7 days')"),
-      query('SELECT COUNT(*) as count FROM signals'),
-      query('SELECT COUNT(*) as count FROM stories'),
-      query('SELECT COUNT(*) as count FROM subscribers WHERE referred_by IS NOT NULL'),
-      query('SELECT referred_by, COUNT(*) as count FROM subscribers WHERE referred_by IS NOT NULL GROUP BY referred_by ORDER BY count DESC LIMIT 5'),
-      query('SELECT interested_sectors FROM subscribers'),
-      query("SELECT COUNT(*) as total_views, COUNT(DISTINCT ip_hash) as unique_visitors FROM traffic_logs WHERE timestamp > datetime('now', '-24 hours')"),
-      query("SELECT COALESCE(NULLIF(utm_source, ''), 'Direct') as source, COUNT(*) as count FROM traffic_logs WHERE timestamp > datetime('now', '-7 days') GROUP BY source ORDER BY count DESC LIMIT 5"),
-      query("SELECT user_id, niche, score FROM user_scores WHERE score >= 10 ORDER BY score DESC LIMIT 5")
-    ]);
+    // Run queries sequentially to avoid Turso locking errors
+    const subscribersCount = await query("SELECT COUNT(*) as count FROM subscribers");
+    const growthCount = await query("SELECT COUNT(*) as count FROM subscribers WHERE created_at > datetime('now', '-7 days')");
+    const signalsCount = await query("SELECT COUNT(*) as count FROM signals");
+    const storiesCount = await query("SELECT COUNT(*) as count FROM stories");
+    const referralsCount = await query("SELECT COUNT(*) as count FROM subscribers WHERE referred_by IS NOT NULL");
+    const topReferrers = await query("SELECT referred_by, COUNT(*) as count FROM subscribers WHERE referred_by IS NOT NULL GROUP BY referred_by ORDER BY count DESC LIMIT 5");
+    const sectorInterests = await query("SELECT interested_sectors FROM subscribers");
+    const trafficStats = await query("SELECT COUNT(*) as total_views, COUNT(DISTINCT ip_hash) as unique_visitors FROM traffic_logs WHERE timestamp > datetime('now', '-24 hours')");
+    const topTrafficSources = await query("SELECT COALESCE(NULLIF(utm_source, ''), 'Direct') as source, COUNT(*) as count FROM traffic_logs WHERE timestamp > datetime('now', '-7 days') GROUP BY source ORDER BY count DESC LIMIT 5");
+    const highPotentialLeads = await query("SELECT user_id, niche, score FROM user_scores WHERE score >= 10 ORDER BY score DESC LIMIT 5");
+    const premiumCount = await query("SELECT COUNT(*) as count FROM subscribers WHERE is_premium = 1");
 
     const sectorCounts = {};
     sectorInterests.forEach(row => {
@@ -358,22 +615,30 @@ app.get('/api/admin/stats', async (req, res) => {
     });
 
     const formattedTopReferrers = topReferrers.map(r => {
+      // Handle non-email referral codes (like hex codes)
+      if (!r.referred_by || !r.referred_by.includes('@')) {
+        return { email: r.referred_by || 'unknown', count: r.count };
+      }
       const parts = r.referred_by.split('@');
-      const masked = parts[0].substring(0, 3) + '...' + '@' + parts[1];
+      const masked = parts[0].substring(0, 3) + '...@' + parts[1];
       return { email: masked, count: r.count };
     });
 
+    const totalSubs = subscribersCount[0].count;
+
     res.json({
-      totalSubscribers: subscribersCount[0].count,
+      totalSubscribers: totalSubs,
       subscriberGrowth: growthCount[0].count,
+      premiumUsers: premiumCount[0].count,
+      premiumConversion: totalSubs > 0 ? ((premiumCount[0].count / totalSubs) * 100).toFixed(1) : '0.0',
       intelligenceVolume: {
         totalSignals: signalsCount[0].count,
         totalStories: storiesCount[0].count
       },
       growthMetrics: {
         totalReferrals: referralsCount[0].count,
-        referralConversionRate: subscribersCount[0].count > 0
-          ? ((referralsCount[0].count / subscribersCount[0].count) * 100).toFixed(1)
+        referralConversionRate: totalSubs > 0
+          ? ((referralsCount[0].count / totalSubs) * 100).toFixed(1)
           : 0,
         topReferrers: formattedTopReferrers
       },
@@ -383,8 +648,7 @@ app.get('/api/admin/stats', async (req, res) => {
         dailyViews: trafficStats[0].total_views,
         topTrafficSources: topTrafficSources,
         highPotentialLeads: highPotentialLeads
-      },
-      premiumConversion: 12.5
+      }
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -428,7 +692,7 @@ app.get('/api/newsletters', async (req, res) => {
 app.get('/api/newsletters/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const newsletters = await query(`SELECT * FROM newsletters WHERE id = '${escape(id)}'`);
+    const newsletters = await query(`SELECT * FROM newsletters WHERE id = ${escape(id)}`);
     if (newsletters.length === 0) {
       return res.status(404).json({ error: 'Newsletter not found' });
     }
@@ -467,7 +731,7 @@ app.get('/api/blogs', async (req, res) => {
 app.get('/api/blogs/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const blogs = await query(`SELECT * FROM reports WHERE id = '${escape(id)}' AND type = 'blog'`);
+    const blogs = await query(`SELECT * FROM reports WHERE id = ${escape(id)} AND type = 'blog'`);
     if (blogs.length === 0) {
       return res.status(404).json({ error: 'Blog post not found' });
     }

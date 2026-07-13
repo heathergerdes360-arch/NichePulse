@@ -9,7 +9,10 @@ const Tracker = () => {
   useEffect(() => {
     const trackPage = async () => {
       try {
-        const utm_source = searchParams.get('utm_source') || searchParams.get('ref') || '';
+        // Only use ref if it's a valid non-empty value
+        const utmSource = searchParams.get('utm_source') || '';
+        const refParam = searchParams.get('ref') || '';
+        const utm_source = utmSource || refParam || '';
         const referrer = document.referrer || '';
         const path = location.pathname + location.search;
 

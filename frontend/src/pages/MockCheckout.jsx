@@ -21,13 +21,13 @@ const MockCheckout = () => {
     setLoading(true);
     setError(null);
     try {
-      // Simulate real payment confirmation
-      await axios.post('/api/confirm-payment', { email });
-      
-      setSuccess(true);
-      setTimeout(() => {
-        navigate('/dashboard');
-      }, 3000);
+      // Redirect to real Stripe checkout
+      const res = await axios.post('/api/create-checkout-session', { email, plan: 'monthly' });
+      if (res.data.url) {
+        window.location.href = res.data.url;
+        return;
+      }
+      setError('Failed to initiate checkout. Please try again.');
     } catch (err) {
       console.error('Payment failed:', err);
       setError('Payment processing failed. Please try again.');

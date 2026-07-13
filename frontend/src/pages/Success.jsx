@@ -1,9 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import { CheckCircle, Crown, Loader2, ArrowRight } from 'lucide-react';
-
-const API_BASE = `/api`;
 
 const Success = () => {
   const [searchParams] = useSearchParams();
@@ -12,25 +9,15 @@ const Success = () => {
   const email = searchParams.get('email') || localStorage.getItem('nichepulse_email');
 
   useEffect(() => {
-    const confirmPayment = async () => {
-      if (!email) {
-        setStatus('error');
-        return;
-      }
+    // Premium activation is handled server-side by the Stripe webhook.
+    // The webhook updates is_premium in the database automatically.
+    // We just need to wait a moment for the webhook to process.
+    const timer = setTimeout(() => {
+      setStatus('success');
+    }, 3000);
 
-      try {
-        await axios.post(`${API_BASE}/confirm-payment`, { email });
-        setStatus('success');
-        // Update local storage just in case
-        localStorage.setItem('nichepulse_premium', 'true');
-      } catch (err) {
-        console.error('Payment confirmation error:', err);
-        setStatus('error');
-      }
-    };
-
-    confirmPayment();
-  }, [email]);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
