@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { CheckCircle, Crown, Loader2, ArrowRight } from 'lucide-react';
 
 const Success = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [status, setStatus] = useState('verifying');
-  const email = searchParams.get('email') || localStorage.getItem('nichepulse_email');
+  const email = user?.email || searchParams.get('email');
 
   useEffect(() => {
     // Premium activation is handled server-side by the Stripe webhook.

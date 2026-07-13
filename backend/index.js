@@ -15,6 +15,38 @@ if (!stripe) {
   console.warn('WARNING: STRIPE_SECRET_KEY not set — Stripe checkout will use static payment link fallback');
 }
 
+// --- Magic Auth ---
+const { Magic } = require('@magic-sdk/admin');
+const magic = process.env.MAGIC_SECRET_KEY 
+  ? new Magic(process.env.MAGIC_SECRET_KEY) 
+  : null;
+
+if (!magic) {
+  console.warn('WARNING: MAGIC_SECRET_KEY not set — Magic Auth will return 500 on requireAuth endpoints');
+}
+
+// Magic Auth Middleware — verifies DID tokens via Magic SDK
+const requireAuth = async (req, res, next) => {
+  if (!magic) {
+    return res.status(500).json({ error: 'Authentication not configured' });
+  }
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  const token = authHeader.slice(7);
+  try {
+    const metadata = await magic.users.getMetadataByToken(token);
+    if (!metadata.email) {
+      return res.status(401).json({ error: 'Invalid authentication token' });
+    }
+    req.userEmail = metadata.email;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+};
+
 const app = express();
 const port = process.env.PORT || 3002;
 
@@ -46,7 +78,7 @@ const requirePremium = async (req, res, next) => {
     return res.status(401).json({ error: 'Email parameter required for premium access' });
   }
   try {
-    const subscribers = await query(`SELECT is_premium FROM subscribers WHERE email = '${escape(email)}'`);
+    const subscribers = await query(`SELECT is_premium FROM subscribers WHERE email = ${escape(email)}`);
     if (subscribers.length === 0 || !subscribers[0].is_premium) {
       return res.status(403).json({ error: 'Premium subscription required' });
     }
@@ -61,137 +93,24 @@ app.use((req, res, next) => {
   next();
 });
 
-// ============================================================
-// MAGIC AUTH SYSTEM
-// ============================================================
-
-// Session Auth Middleware — extracts user from session token
-const requireSession = async (req, res, next) => {
-  const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
-  if (!token) {
-    return res.status(401).json({ error: 'Authentication required' });
-  }
+// GET /api/auth/me — Get current user from Magic DID token
+app.get('/api/auth/me', requireAuth, async (req, res) => {
   try {
-    const sessions = await query(`SELECT * FROM sessions WHERE id = '${escape(token)}' AND is_active = 1 AND expires_at > datetime('now')`);
-    if (sessions.length === 0) {
-      return res.status(401).json({ error: 'Session expired or invalid' });
-    }
-    req.user = { email: sessions[0].email, sessionId: sessions[0].id };
-    // Update last_used_at
-    await query(`UPDATE sessions SET last_used_at = datetime('now') WHERE id = '${escape(token)}'`);
-    next();
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
-// POST /api/auth/send-magic-link — Generate and log magic link token
-app.post('/api/auth/send-magic-link', async (req, res) => {
-  const { email } = req.body;
-  if (!email) return res.status(400).json({ error: 'Email is required' });
-
-  try {
-    // Check subscriber exists
-    const subscriber = await query(`SELECT email FROM subscribers WHERE email = '${escape(email)}'`);
-    if (subscriber.length === 0) {
-      // Don't reveal whether email exists, just return success
-      return res.json({ success: true, message: 'If this email is registered, a magic link has been sent.' });
-    }
-
-    // Generate a secure random token
-    const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 min expiry
-
-    // Store token
-    await query(`INSERT INTO auth_tokens (email, token, expires_at) VALUES ('${escape(email)}', '${escape(token)}', '${escape(expiresAt)}')`);
-
-    // Build magic link
-    const baseUrl = req.headers.origin || 'http://localhost:3000';
-    const magicLink = `${baseUrl}/auth/verify?token=${token}`;
-
-    console.log(`\n=== MAGIC LINK for ${email} ===`);
-    console.log(`  ${magicLink}`);
-    console.log(`  Expires: ${expiresAt}\n`);
-
-    // Try to send email — log the link if email sending fails
-    // In production, this would use an email service (SendGrid, SES, etc.)
-    
-    res.json({ success: true, message: 'Magic link sent! Check your email (or server logs).', devLink: magicLink });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST /api/auth/verify — Verify magic link token and create session
-app.post('/api/auth/verify', async (req, res) => {
-  const { token } = req.body;
-  if (!token) return res.status(400).json({ error: 'Token is required' });
-
-  try {
-    // Find valid, unused token
-    const tokens = await query(`SELECT * FROM auth_tokens WHERE token = '${escape(token)}' AND used = 0 AND expires_at > datetime('now')`);
-    if (tokens.length === 0) {
-      return res.status(401).json({ error: 'Invalid or expired token' });
-    }
-
-    const { email } = tokens[0];
-
-    // Mark token as used
-    await query(`UPDATE auth_tokens SET used = 1 WHERE token = '${escape(token)}'`);
-
-    // Create session (30 days expiry)
-    const sessionId = crypto.randomBytes(32).toString('hex');
-    const sessionExpires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-    await query(`INSERT INTO sessions (id, email, expires_at) VALUES ('${escape(sessionId)}', '${escape(email)}', '${escape(sessionExpires)}')`);
-
-    // Get subscriber info
-    const subscriber = await query(`SELECT * FROM subscribers WHERE email = '${escape(email)}'`);
-
-    res.json({
-      success: true,
-      sessionToken: sessionId,
-      expiresAt: sessionExpires,
-      user: subscriber.length > 0 ? {
-        email: subscriber[0].email,
-        isPremium: !!subscriber[0].is_premium,
-        subscriptionTier: subscriber[0].subscription_tier,
-        referralCode: subscriber[0].referral_code,
-        interestedSectors: subscriber[0].interested_sectors
-      } : { email }
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// GET /api/auth/me — Get current user from session token
-app.get('/api/auth/me', requireSession, async (req, res) => {
-  try {
-    const subscriber = await query(`SELECT * FROM subscribers WHERE email = '${escape(req.user.email)}'`);
+    const subscriber = await query(`SELECT * FROM subscribers WHERE email = ${escape(req.userEmail)}`);
     res.json({
       authenticated: true,
-      email: req.user.email,
-      sessionId: req.user.sessionId,
+      email: req.userEmail,
       user: subscriber.length > 0 ? {
         email: subscriber[0].email,
         isPremium: !!subscriber[0].is_premium,
         subscriptionTier: subscriber[0].subscription_tier,
         referralCode: subscriber[0].referral_code,
         interestedSectors: subscriber[0].interested_sectors
-      } : { email: req.user.email }
+      } : { email: req.userEmail }
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
-
-// POST /api/auth/logout — Invalidate session
-app.post('/api/auth/logout', async (req, res) => {
-  const token = req.headers['authorization']?.replace('Bearer ', '');
-  if (token) {
-    await query(`UPDATE sessions SET is_active = 0 WHERE id = '${escape(token)}'`);
-  }
-  res.json({ success: true, message: 'Logged out' });
 });
 
 // --- Health Check ---
@@ -258,13 +177,10 @@ app.get('/api/stories', async (req, res) => {
 });
 
 // --- Stories Export (Premium Feature) ---
-app.get(['/api/stories/export', '/api/export-stories'], async (req, res) => {
+app.get(['/api/stories/export', '/api/export-stories'], requireAuth, async (req, res) => {
   console.log('Export endpoint hit!');
-  const { email, category, start_date, end_date } = req.query;
-
-  if (!email) {
-    return res.status(401).json({ error: 'Email parameter is required' });
-  }
+  const { category, start_date, end_date } = req.query;
+  const email = req.userEmail;
 
   try {
     // Check if user is premium
@@ -328,9 +244,9 @@ app.get('/api/stories/:id', async (req, res) => {
 });
 
 // --- Subscribers ---
-app.get('/api/subscribers/:email', async (req, res) => {
+app.get('/api/subscribers/me', requireAuth, async (req, res) => {
   try {
-    const subscriber = await query(`SELECT * FROM subscribers WHERE email = ${escape(req.params.email)}`);
+    const subscriber = await query(`SELECT * FROM subscribers WHERE email = ${escape(req.userEmail)}`);
     if (subscriber.length === 0) return res.status(404).json({ error: 'Subscriber not found' });
     res.json(subscriber[0]);
   } catch (err) {
@@ -338,7 +254,7 @@ app.get('/api/subscribers/:email', async (req, res) => {
   }
 });
 
-app.patch('/api/subscribers/:email', async (req, res) => {
+app.patch('/api/subscribers/me', requireAuth, async (req, res) => {
   const { interested_sectors, sentiment_alerts } = req.body;
   try {
     let updates = [];
@@ -347,16 +263,16 @@ app.patch('/api/subscribers/:email', async (req, res) => {
     
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
     
-    await query(`UPDATE subscribers SET ${updates.join(', ')} WHERE email = ${escape(req.params.email)}`);
+    await query(`UPDATE subscribers SET ${updates.join(', ')} WHERE email = ${escape(req.userEmail)}`);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.get('/api/subscribers/:email/referrals', async (req, res) => {
+app.get('/api/subscribers/me/referrals', requireAuth, async (req, res) => {
   try {
-    const subscriber = await query(`SELECT referral_code FROM subscribers WHERE email = ${escape(req.params.email)}`);
+    const subscriber = await query(`SELECT referral_code FROM subscribers WHERE email = ${escape(req.userEmail)}`);
     if (subscriber.length === 0) return res.status(404).json({ error: 'Subscriber not found' });
     
     const code = subscriber[0].referral_code;
@@ -453,8 +369,9 @@ const { STRIPE_PAYMENT_LINK } = require('./config');
 
 // --- Stripe Integration ---
 // POST /api/create-checkout-session — Creates a Stripe Checkout Session (or falls back to static link)
-app.post('/api/create-checkout-session', async (req, res) => {
-  const { email, plan } = req.body;
+app.post('/api/create-checkout-session', requireAuth, async (req, res) => {
+  const { plan } = req.body;
+  const email = req.userEmail;
   if (!email) return res.status(400).json({ error: 'Email is required' });
 
   const successUrl = process.env.STRIPE_SUCCESS_URL || 'https://nichepulse.ai/dashboard';

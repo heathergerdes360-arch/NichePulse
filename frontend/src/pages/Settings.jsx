@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../lib/api';
+import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { Settings as SettingsIcon, ChevronLeft, Save, Bell, Globe, Crown, ShieldCheck, Check, Share2, Copy, Users, Gift } from 'lucide-react';
 
@@ -8,6 +9,7 @@ const API_BASE = `/api`;
 const SECTORS = ['AI', 'Climate Tech', 'Biotech', 'SpaceTech', 'DefenseTech', 'Longevity'];
 
 const Settings = () => {
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
   const [subscriber, setSubscriber] = useState(null);
   const [referrals, setReferrals] = useState({ count: 0, referrals: [] });
   const [loading, setLoading] = useState(true);
@@ -19,19 +21,20 @@ const Settings = () => {
   const [sentimentAlerts, setSentimentAlerts] = useState(false);
   
   const navigate = useNavigate();
-  const email = localStorage.getItem('nichepulse_email');
 
   useEffect(() => {
-    if (!email) {
-      navigate('/');
+    if (!authLoading && !isAuthenticated) {
+      navigate('/login', { replace: true });
       return;
     }
+
+    if (!user?.email) return;
 
     const fetchData = async () => {
       try {
         const [subRes, refRes] = await Promise.all([
-          axios.get(`${API_BASE}/subscribers/${encodeURIComponent(email)}`),
-          axios.get(`${API_BASE}/subscribers/${encodeURIComponent(email)}/referrals`)
+          api.get(`/subscribers/me`),
+          api.get(`/subscribers/me/referrals`)
         ]);
         setSubscriber(subRes.data);
         setReferrals(refRes.data);
@@ -46,7 +49,7 @@ const Settings = () => {
     };
 
     fetchData();
-  }, [email, navigate]);
+  }, [user, authLoading, isAuthenticated, navigate]);
 
   const handleCopyLink = () => {
     const link = `${window.location.origin}/?ref=${subscriber?.referral_code}`;
@@ -67,7 +70,7 @@ const Settings = () => {
     setSaving(true);
     setMessage({ type: '', text: '' });
     try {
-      await axios.patch(`${API_BASE}/subscribers/${encodeURIComponent(email)}`, {
+      await api.patch(`/subscribers/me`, {
         interested_sectors: interestedSectors,
         sentiment_alerts: sentimentAlerts
       });
@@ -83,7 +86,7 @@ const Settings = () => {
 
   const handleUpgrade = async () => {
     try {
-      const res = await axios.post(`${API_BASE}/create-checkout-session`, { email });
+      const res = await api.post(`/create-checkout-session`);
       if (res.data.url) {
         window.location.href = res.data.url;
       }

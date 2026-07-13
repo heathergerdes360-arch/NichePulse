@@ -1,6 +1,8 @@
 import SEO from '../components/SEO'
 import { useState, useEffect } from 'react'
 import axios from 'axios'
+import api from '../lib/api'
+import { useAuth } from '../context/AuthContext'
 import { useParams, Link } from 'react-router-dom'
 import { TrendingUp, ArrowLeft, Calendar, Share2, Mail, ExternalLink } from 'lucide-react'
 
@@ -8,6 +10,7 @@ const API_BASE = `/api`
 
 function ArchiveDetail() {
   const { id } = useParams()
+  const { isAuthenticated } = useAuth();
   const [newsletter, setNewsletter] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -29,13 +32,12 @@ function ArchiveDetail() {
     fetchNewsletter()
 
     // Fetch user referral code if logged in
-    const email = localStorage.getItem('nichepulse_email')
-    if (email) {
-      axios.get(`${API_BASE}/subscribers/${encodeURIComponent(email)}`)
+    if (isAuthenticated) {
+      api.get(`/subscribers/me`)
         .then(res => setReferralCode(res.data.referral_code))
         .catch(err => console.error('Error fetching referral code:', err))
     }
-  }, [id])
+  }, [id, isAuthenticated])
 
   const getShareUrl = () => {
     const url = new URL(window.location.href)

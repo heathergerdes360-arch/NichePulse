@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import axios from 'axios'
+import api from '../lib/api'
+import { useAuth } from '../context/AuthContext'
 import ReactMarkdown from 'react-markdown'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Newspaper, FileText, BarChart3, TrendingUp, TrendingDown, AlertTriangle, Crown, Sparkles, Minus, ArrowRight, Activity, Settings, Check, Link2, Zap, Search, Lightbulb } from 'lucide-react'
 import UpgradeModal from '../components/UpgradeModal'
 import DeepDiveModal from './components/DeepDiveModal'
@@ -12,6 +13,8 @@ import SignalConnectivity from './components/SignalConnectivity'
 const API_BASE = `/api`
 
 function Dashboard() {
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('stories')
   const [stories, setStories] = useState([])
   const [reports, setReports] = useState([])
@@ -19,6 +22,13 @@ function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      navigate('/login', { replace: true });
+    }
+  }, [authLoading, isAuthenticated, navigate]);
+
   // Premium States
   const [isPremium, setIsPremium] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -48,11 +58,10 @@ function Dashboard() {
           setSelectedReport(reportsRes.data[0])
         }
 
-        // Fetch user premium status
-        const email = localStorage.getItem('nichepulse_email')
-        if (email) {
+        // Fetch user premium status via authenticated endpoint
+        if (isAuthenticated) {
           try {
-            const subRes = await axios.get(`${API_BASE}/subscribers/${encodeURIComponent(email)}`)
+            const subRes = await api.get(`/subscribers/me`)
             setIsPremium(!!subRes.data.is_premium)
           } catch (err) {
             console.error('Error fetching subscriber status:', err)
@@ -69,13 +78,12 @@ function Dashboard() {
   }, [])
 
   const handleUpgrade = async () => {
-    const email = localStorage.getItem('nichepulse_email');
-    if (!email) {
-      alert("Please sign in to upgrade.");
+    if (!isAuthenticated) {
+      navigate('/login');
       return;
     }
     try {
-      const res = await axios.post(`${API_BASE}/create-checkout-session`, { email });
+      const res = await api.post(`/create-checkout-session`);
       if (res.data.url) {
         window.location.href = res.data.url;
       }

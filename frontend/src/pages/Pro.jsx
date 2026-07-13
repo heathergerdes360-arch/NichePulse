@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import { useNavigate, Link } from 'react-router-dom'
 import { 
   TrendingUp, CheckCircle, Zap, ArrowRight, Star, Mail, 
   Settings, Crown, Sparkles, Shield, BarChart, Layers, 
@@ -11,18 +12,23 @@ import {
 const STRIPE_URL = 'https://buy.stripe.com/28EbJ1aLx6Qe8vk3FG9Ve00'
 
 function Pro() {
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('')
   const [billing, setBilling] = useState('monthly') // 'monthly' | 'annual'
 
   const handleUpgrade = () => {
-    window.open(STRIPE_URL, '_blank', 'noopener,noreferrer')
+    if (isAuthenticated) {
+      window.open(STRIPE_URL, '_blank', 'noopener,noreferrer')
+    } else {
+      navigate('/login')
+    }
   }
 
   const handleNotify = (e) => {
     e.preventDefault()
     if (email) {
-      localStorage.setItem('nichepulse_email', email)
-      handleUpgrade()
+      navigate('/login')
     }
   }
 

@@ -1,12 +1,15 @@
 import SEO from "../components/SEO";
 import { useState, useEffect } from 'react'
 import axios from 'axios'
+import api from '../lib/api'
+import { useAuth } from '../context/AuthContext'
 import { Link } from 'react-router-dom'
 import { Newspaper, Calendar, ArrowRight, TrendingUp, Search, Share2, Mail, ExternalLink, Download, Crown } from 'lucide-react'
 
 const API_BASE = `/api`
 
 function Archive() {
+  const { user, isAuthenticated } = useAuth();
   const [newsletters, setNewsletters] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -30,21 +33,35 @@ function Archive() {
     fetchNewsletters()
 
     // Fetch user referral code and premium status if logged in
-    const email = localStorage.getItem('nichepulse_email')
-    if (email) {
-      axios.get(`${API_BASE}/subscribers/${encodeURIComponent(email)}`)
+    if (isAuthenticated && user?.email) {
+      api.get(`/subscribers/me`)
         .then(res => {
           setReferralCode(res.data.referral_code)
           setIsPremium(!!res.data.is_premium)
         })
         .catch(err => console.error('Error fetching subscriber data:', err))
     }
-  }, [])
+  }, [isAuthenticated, user])
 
   const handleExportCSV = () => {
-    const email = localStorage.getItem('nichepulse_email');
-    if (!email) return;
-    window.location.href = `${API_BASE}/stories/export?email=${encodeURIComponent(email)}`;
+    if (isAuthenticated) {
+      // The api interceptor will attach the Bearer token
+      api.get(`/stories/export`, { responseType: 'blob' })
+        .then(res => {
+          const url = window.URL.createObjectURL(new Blob([res.data]));
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `nichepulse_export_${new Date().toISOString().split('T')[0]}.csv`;
+          a.click();
+          window.URL.revokeObjectURL(url);
+        })
+        .catch(err => {
+          console.error('Export failed:', err);
+          alert('Export requires a premium subscription. Please upgrade.');
+        });
+    } else {
+      alert('Please sign in to export data.');
+    }
   };
 
   const getShareUrl = (newsletterId) => {

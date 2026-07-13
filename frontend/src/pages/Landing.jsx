@@ -2,6 +2,7 @@ import SEO from '../components/SEO';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 import { TrendingUp, CheckCircle, Zap, ArrowRight, ShieldCheck, Star, Mail, AlertCircle, Settings, BarChart, Target, Users, Rocket, Shield, Clock, Layers } from 'lucide-react';
 
 const Landing = () => {
@@ -11,7 +12,14 @@ const Landing = () => {
   const [error, setError] = useState(null);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { login, isAuthenticated } = useAuth();
   const [recentStories, setRecentStories] = useState([]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
 
   useEffect(() => {
     const fetchRecentStories = async () => {
@@ -40,10 +48,15 @@ const Landing = () => {
         payload.referredBy = refCode;
       }
       const response = await axios.post(`/api/subscribe`, payload);
-      localStorage.setItem('nichepulse_email', email);
+      // After subscribe, trigger Magic Auth login flow
+      try {
+        await login(email);
+      } catch (loginErr) {
+        console.error('Magic link send failed:', loginErr);
+      }
       setSuccess(true);
       setTimeout(() => {
-        navigate('/dashboard');
+        navigate('/login');
       }, 2000);
     } catch (err) {
       setError(err.response?.data?.error || 'An error occurred during signup.');
@@ -100,10 +113,9 @@ const Landing = () => {
   ];
 
   const handleUpgrade = async () => {
-    const storedEmail = localStorage.getItem('nichepulse_email');
-    if (storedEmail) {
+    if (isAuthenticated) {
       try {
-        const res = await axios.post(`/api/create-checkout-session`, { email: storedEmail });
+        const res = await axios.post(`/api/create-checkout-session`);
         if (res.data.url) {
           window.location.href = res.data.url;
         }
@@ -112,8 +124,7 @@ const Landing = () => {
         alert("Failed to start checkout. Please try again.");
       }
     } else {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      setError("Please sign up for free first to upgrade your account.");
+      navigate('/login');
     }
   };
 
