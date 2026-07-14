@@ -71,23 +71,6 @@ const adminAuth = (req, res, next) => {
   next();
 };
 
-// --- Premium Authorization Middleware ---
-const requirePremium = async (req, res, next) => {
-  const email = req.query.email || req.body?.email;
-  if (!email) {
-    return res.status(401).json({ error: 'Email parameter required for premium access' });
-  }
-  try {
-    const subscribers = await query(`SELECT is_premium FROM subscribers WHERE email = ${escape(email)}`);
-    if (subscribers.length === 0 || !subscribers[0].is_premium) {
-      return res.status(403).json({ error: 'Premium subscription required' });
-    }
-    next();
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to verify premium status' });
-  }
-};
-
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
   next();
