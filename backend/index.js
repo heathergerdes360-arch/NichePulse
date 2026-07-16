@@ -656,6 +656,10 @@ app.get('/api/blogs/:id', async (req, res) => {
   }
 });
 
-app.listen(port, '0.0.0.0', () => {
-  console.log(`Backend listening on http://0.0.0.0:${port}`);
-});
+module.exports = app;
+
+if (require.main === module) {
+  app.listen(port, '0.0.0.0', () => {
+    console.log(`Backend listening on http://0.0.0.0:${port}`);
+  });
+}
