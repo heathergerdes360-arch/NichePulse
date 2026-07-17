@@ -13,6 +13,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@libsql/client": "^0.17.4",
     "@magic-sdk/admin": "^2.8.2",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
