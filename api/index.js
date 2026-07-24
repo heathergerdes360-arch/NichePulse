@@ -1,8 +1,21 @@
-console.log('[backend] Core modules loaded, loading db...');
-const { query, escape } = require('./db');
-console.log('[backend] db module loaded');
+// Vercel Serverless Function — wraps the Express app for serverless deployment
+console.log('[api/index] Starting serverless function initialization...');
 
-dotenv.config();
+try {
+  console.log('[api/index] Loading serverless-http...');
+  const serverless = require('serverless-http');
+  console.log('[api/index] serverless-http loaded successfully');
 
-console.log('[backend] Loading Stripe...');
-const stripe = ...
+  console.log('[api/index] Loading backend app...');
+  const app = require('../backend/index');
+  console.log('[api/index] Backend app loaded successfully');
+
+  const handler = serverless(app);
+  console.log('[api/index] Handler created successfully');
+
+  module.exports.handler = handler;
+} catch (err) {
+  console.error('[api/index] CRASH during initialization:', err.message);
+  console.error('[api/index] Stack:', err.stack);
+  throw err;
+}
