@@ -1,8 +1,5 @@
-console.log('[backend] Core modules loaded, loading db...');
-const { query, escape } = require('./db');
-console.log('[backend] db module loaded');
+// Vercel Serverless Function — wraps the Express app for serverless deployment
+const serverless = require('serverless-http');
+const app = require('../backend/index');
 
-dotenv.config();
-
-console.log('[backend] Loading Stripe...');
-const stripe = ...
+module.exports.handler = serverless(app);
